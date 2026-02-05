@@ -36,8 +36,13 @@ if ! [[ "$COMMIT_MSG" =~ ^US-[0-9]+:\ .+ ]]; then
     exit 1
 fi
 
-# Extract issue number from commit message
-ISSUE_NUM=$(echo "$COMMIT_MSG" | grep -oP 'US-\K[0-9]+')
+# Extract issue number from commit message (macOS compatible)
+if [[ "$COMMIT_MSG" =~ US-([0-9]+) ]]; then
+    ISSUE_NUM="${BASH_REMATCH[1]}"
+else
+    # This shouldn't happen since we already validated the format, but just in case
+    exit 0
+fi
 
 # Get current branch name
 BRANCH=$(git branch --show-current)
