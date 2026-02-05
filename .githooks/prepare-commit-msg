@@ -26,6 +26,7 @@ if [[ "$BRANCH" =~ us-([0-9]+) ]]; then
         echo "US-$ISSUE_NUM: " > "$COMMIT_MSG_FILE"
         echo "" >> "$COMMIT_MSG_FILE"
         echo "# Working on issue #$ISSUE_NUM" >> "$COMMIT_MSG_FILE"
+        echo "# Remember: End with #$ISSUE_NUM for GitHub linking" >> "$COMMIT_MSG_FILE"
         echo "# Remember: Use imperative mood (Add, not Added)" >> "$COMMIT_MSG_FILE"
         cat .gitmessage | tail -n +4 >> "$COMMIT_MSG_FILE"
     fi

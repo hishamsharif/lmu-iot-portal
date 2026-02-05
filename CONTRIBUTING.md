@@ -32,15 +32,20 @@ git checkout -b feature/us-1-device-types
 All commits **must** follow this format (enforced by CI):
 
 ```
-US-<issue-number>: <short description>
+US-<issue-number>: <short description> #<issue-number>
 ```
 
 **Examples:**
 ```bash
-git commit -m "US-1: Add ProtocolType enum"
-git commit -m "US-1: Create ProtocolConfigCast for MQTT/HTTP"
-git commit -m "US-1: Add DeviceType model and migration"
+git commit -m "US-1: Add ProtocolType enum #1"
+git commit -m "US-1: Create ProtocolConfigCast for MQTT/HTTP #1"
+git commit -m "US-1: Add DeviceType model and migration #1"
 ```
+
+**Why include `#<issue-number>`?**
+- Creates automatic GitHub issue linking
+- Allows viewing all commits for an issue directly from GitHub
+- Enables better traceability in GitHub's UI
 
 **Why?** This links commits to issues, making the history traceable and enabling automated changelog generation.
 
@@ -122,12 +127,13 @@ php artisan migrate:rollback
 ## 🤖 GitHub Actions Enforcement
 
 ### Commit Message Check
-**Enforced format**: `US-<issue-number>: <description>`
+**Enforced format**: `US-<issue-number>: <description> #<issue-number>`
 
 **Pass:**
 ```
-US-1: Add ProtocolType enum
-US-7: Create parameter extraction logic
+US-1: Add ProtocolType enum #1
+US-7: Create parameter extraction logic #7
+US-1: Fix validation bug #1
 ```
 
 **Fail:**
@@ -136,6 +142,8 @@ Add device types                    (missing US- prefix)
 US-1 Add enum                       (missing colon)
 Fixed bug                           (missing issue reference)
 ```
+
+**Note:** The `#<issue-number>` at the end is recommended but not strictly enforced by hooks. It creates automatic GitHub issue linking.
 
 ### Branch Name Check
 **Enforced format**: `feature/us-<number>-<slug>` or `hotfix/us-<number>-<slug>`

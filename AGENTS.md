@@ -10,7 +10,7 @@ The Laravel Boost guidelines are specifically curated by Laravel maintainers for
 # Git Workflow & Contribution Standards
 
 - This project follows a **git-flow inspired workflow** with automated enforcement via GitHub Actions.
-- ALL commits MUST follow the format: `US-<issue-number>: <description>` (e.g., `US-1: Add ProtocolType enum`).
+- ALL commits MUST follow the format: `US-<issue-number>: <description> #<issue-number>` (e.g., `US-1: Add ProtocolType enum #1`).
 - ALL feature branches MUST follow the format: `feature/us-<issue-number>-<slug>` (e.g., `feature/us-1-device-types`).
 - ALL pull requests MUST reference an issue using `Closes #<number>` in the description.
 - Refer to [CONTRIBUTING.md](CONTRIBUTING.md) for complete workflow documentation.
@@ -18,7 +18,7 @@ The Laravel Boost guidelines are specifically curated by Laravel maintainers for
 ## When Starting Implementation
 1. Check GitHub Issues and pick from "Ready" or "Backlog"
 2. Create feature branch: `git checkout -b feature/us-<issue>-<slug>`
-3. Commit with proper format: `git commit -m "US-<issue>: <what you did>"`
+3. Commit with proper format: `git commit -m "US-<issue>: <what you did> #<issue>"`
 4. Open PR against `main` with issue reference
 5. GitHub Actions will validate commit format, branch name, and issue linking
 6. Move issue to "In Review" when PR is opened
