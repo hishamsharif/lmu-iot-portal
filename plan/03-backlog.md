@@ -74,6 +74,10 @@ Sub-tasks:
    - Pest: CRUD operations, org scoping enforcement, global vs org-specific uniqueness
    - Pest: protocol config serialization/deserialization (MQTT and HTTP)
    - Pest: validation failures for invalid protocol configs
+6. **Policies & permissions (enum-permission)**:
+   - Add `device-types.*` permissions to enum
+   - Policy: `DeviceTypePolicy` (viewAny, view, create, update, delete)
+   - Seed roles/permissions and add tests for authorization gates
 
 ### US-2: Device schema versions with parameter definitions
 Story: As an org admin, I can define versioned device schemas with parameter definitions so telemetry structure and validation rules are consistently enforced.
@@ -89,15 +93,16 @@ Story: As an org admin, I can define versioned device schemas with parameter def
 - Only one "active" version per schema (enforced in app logic).
 - Versioning allows contract evolution without breaking existing devices.
 
-**Parameter Validation**:
+**Parameter Validation & Mutation**:
 - Each parameter has a `json_path` (e.g., `$.voltage.L1`) to extract values from telemetry payload.
+- **`mutation_expression`**: JSON column storing **JsonLogic** expressions for transforming raw values (e.g., divide by 10 for decivolts).
 - Validation rules stored as JSON (e.g., `{"min": 0, "max": 500, "type": "numeric"}`).
 - Display config stored as JSON (e.g., `{"decimals": 2, "unit_position": "suffix"}`).
 
 Acceptance:
 - Store device schemas with name.
 - Schema versions with integer version numbers and status.
-- Parameter definitions with key, label, data_type, unit, required flag, json_path, validation rules, display config.
+- Parameter definitions with key, label, data_type, unit, required flag, json_path, **mutation_expression**, validation rules, display config.
 - Enforce unique `(device_schema_id, version)` and unique `(device_schema_version_id, key)` for parameters.
 - Only one "active" version per schema.
 
@@ -105,56 +110,66 @@ Sub-tasks:
 1. **Migrations**:
    - Migration: `device_schemas` (id, device_type_id, name, timestamps, soft delete)
    - Migration: `device_schema_versions` (id, device_schema_id, version, status, notes, timestamps)
-   - Migration: `parameter_definitions` (id, device_schema_version_id, key, label, data_type, unit, required, json_path, validation, display, timestamps)
+   - Migration: `parameter_definitions` (id, device_schema_version_id, key, label, data_type, unit, required, json_path, **mutation_expression**, validation, display, timestamps)
    - Unique constraints and indexes
 2. **Models & relationships**:
    - Model: `DeviceSchema` with `deviceType()` and `versions()` relationships
    - Model: `DeviceSchemaVersion` with `schema()` and `parameters()` relationships
    - Model: `ParameterDefinition` with `schemaVersion()` relationship
-   - Proper casts for JSON fields (validation, display)
+   - Proper casts for JSON fields (validation, display, **mutation_expression**)
 3. **Seeders & factories**:
    - Factory: `DeviceSchemaFactory` and `DeviceSchemaVersionFactory`
-   - Factory: `ParameterDefinitionFactory` with realistic validation rules
+   - Factory: `ParameterDefinitionFactory` with realistic validation and **mutation rules** (JsonLogic)
    - Seeder: 2 schema versions (energy meter v1 with 7 parameters, LED actuator v1 with 3 parameters)
    - Sample parameters: V1, V2, V3, I1, I2, I3, E for energy meter
 4. **Filament resource**:
    - Resource: `DeviceSchemaResource` with schema CRUD
    - Relation manager: version listing on schema detail page
    - Relation manager: parameter definitions on schema version detail page (with inline creation/editing)
-   - Form: parameter repeater with json_path builder, validation rule builder
+   - Form: parameter repeater with json_path builder, **JsonLogic mutation builder**, validation rule builder
    - Table: version status badges, parameter count
 5. **Tests**:
    - Pest: schema creation, version ordering, unique constraints
-   - Pest: parameter creation with json_path and validation rules
+   - Pest: parameter creation with json_path, **mutation logic**, and validation rules
    - Pest: active version enforcement (one active per schema)
-   - Pest: parameter JSON path parsing and validation rule application
+   - Pest: parameter JSON path parsing, **mutation execution**, and validation rule application
+6. **Policies & permissions (enum-permission)**:
+   - Add `device-schemas.*`, `device-schema-versions.*`, `parameter-definitions.*` permissions to enum
+   - Policies: `DeviceSchemaPolicy`, `DeviceSchemaVersionPolicy`, `ParameterDefinitionPolicy`
+   - Seed roles/permissions and add tests for authorization gates
 
 ### US-3: Derived parameters
-Story: As an org admin, I can define derived parameters so the platform can compute additional metrics.
+Story: As an org admin, I can define derived parameters so the platform can compute additional metrics from base telemetry parameters.
 
 Acceptance:
 - Derived definitions reference schema version.
-- Store a safe expression and dependencies.
+- **expression**: JSON column storing **JsonLogic** expressions referencing transformed parameter keys.
+- **dependencies**: JSON array of parameter keys required for the computation.
+- Store a safe expression and validate dependencies against existing parameters.
 
 Sub-tasks:
 - Migration: `derived_parameter_definitions`
-- Model: `DerivedParameterDefinition`
-- Seed: sample derived parameters (e.g., power factor, total energy)
-- Filament relation manager: add to schema version view
-- Pest tests: expression validation, dependency tracking
+- Model: `DerivedParameterDefinition` with **JsonLogic** evaluation logic
+- Seed: sample derived parameters (e.g., heat index, total power)
+- Filament relation manager: add to schema version view with **JsonLogic builder**
+- Pest tests: expression validation, dependency tracking, calculation correctness
 
-### US-4: Error code catalog
-Story: As an org admin, I can map device error codes so ingestion/UI can interpret faults.
+### US-4: Error code catalog & event logging
+Story: As an org admin, I can map device error codes and track fault events so ingestion/UI can interpret and log faults consistently.
 
 Acceptance:
 - Unique `(device_schema_version_id, code)`.
+- Support **parameter-level error mapping**: parameters can reference specific codes.
+- **Fault Event Log**: Time-series log of all validation and device errors.
 
 Sub-tasks:
-- Migration: `device_error_codes`
-- Model: `DeviceErrorCode`
-- Seed: sample error codes for energy meter
+- Migration: `device_error_codes` (with severity, recoverable flag)
+- Migration: `device_error_events` (historical log: device_id, error_code, parameter_key, raw_value, occurred_at)
+- Model: `DeviceErrorCode` (with `ErrorSeverity` enum)
+- Model: `DeviceErrorEvent`
+- Seed: sample error codes for energy meter and thermal sensors
 - Filament relation manager: add to schema version view
-- Pest tests: unique code constraint, severity enum
+- Pest tests: unique code constraint, severity enum, event logging logic
 
 ### US-5: Device registration & identity
 Story: As an org admin, I can register devices and pin them to a schema version.
@@ -183,18 +198,22 @@ Sub-tasks:
 - Pest tests: credential generation, rotation, password hashing
 
 ### US-7: Latest readings snapshot table
-Story: As a portal user, I can see the latest readings without querying time-series storage.
+Story: As a portal user, I can see the latest readings and validation status without querying time-series storage.
 
 Acceptance:
 - One row per device: unique `(device_id)`.
+- **raw_payload**: Stores the exact original JSON received from the device.
+- **transformed_values**: Stores the processed state (parameters with mutations applied + derived parameters).
+- **validation_status**: Enum (`valid`, `invalid`, `warning`).
+- **validation_errors**: JSONB mapping of `parameter_key -> error_code`.
 - Includes schema version used to parse it.
 
 Sub-tasks:
-- Migration: `device_latest_readings`
-- Model: `DeviceLatestReading`
-- Seed: populate with random telemetry for all 100 devices
-- Filament infolist: display on device view page (read-only latest values)
-- Pest tests: upsert logic, one row per device constraint
+- Migration: `device_latest_readings` (with `raw_payload`, `transformed_values`, `validation_status`, `validation_errors`)
+- Model: `DeviceLatestReading` with `ValidationStatus` enum
+- Seed: populate with random telemetry, calculated values, and some sample validation errors
+- Filament infolist: display on device view page (show raw, transformed, and error details)
+- Pest tests: upsert logic, one row per device constraint, **validation status propagation**
 
 ### US-8: Device control definitions, state, and logs
 Story: As a portal user, I can send control commands and track desired state for devices.
