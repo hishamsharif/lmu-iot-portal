@@ -26,10 +26,14 @@ class EditDeviceType extends EditRecord
 
     protected function mutateFormDataBeforeFill(array $data): array
     {
-        // Convert protocol config object to array for form display
-        if (isset($data['protocol_config']) && is_object($data['protocol_config'])) {
-            $config = $data['protocol_config'];
-            $data['protocol_config'] = (array) $config;
+        if (isset($data['protocol_config']) && $data['protocol_config'] instanceof HttpProtocolConfig) {
+            $data['protocol_config'] = $data['protocol_config']->toArray();
+            $data['protocol_config']['command_endpoint'] = $data['protocol_config']['control_endpoint'] ?? null;
+        }
+
+        if (isset($data['protocol_config']) && $data['protocol_config'] instanceof MqttProtocolConfig) {
+            $data['protocol_config'] = $data['protocol_config']->toArray();
+            $data['protocol_config']['command_topic_template'] = $data['protocol_config']['control_topic_template'] ?? null;
         }
 
         return $data;
@@ -38,7 +42,10 @@ class EditDeviceType extends EditRecord
     protected function mutateFormDataBeforeSave(array $data): array
     {
         if (isset($data['default_protocol']) && isset($data['protocol_config'])) {
-            $protocol = ProtocolType::from($data['default_protocol']);
+            $protocolValue = $data['default_protocol'];
+            $protocol = $protocolValue instanceof ProtocolType
+                ? $protocolValue
+                : ProtocolType::from($protocolValue);
             $config = $data['protocol_config'];
 
             $data['protocol_config'] = match ($protocol) {
@@ -59,7 +66,11 @@ class EditDeviceType extends EditRecord
                     controlEndpoint: $config['command_endpoint'] ?? null,
                     method: $config['method'] ?? 'POST',
                     headers: $config['headers'] ?? [],
-                    authType: isset($config['auth_type']) ? HttpAuthType::from($config['auth_type']) : HttpAuthType::None,
+                    authType: isset($config['auth_type'])
+                        ? ($config['auth_type'] instanceof HttpAuthType
+                            ? $config['auth_type']
+                            : HttpAuthType::from($config['auth_type']))
+                        : HttpAuthType::None,
                     authToken: $config['auth_token'] ?? null,
                     authUsername: $config['auth_username'] ?? null,
                     authPassword: $config['auth_password'] ?? null,

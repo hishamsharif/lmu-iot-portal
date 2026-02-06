@@ -38,9 +38,9 @@ class DeviceTypeInfolist
                                 ProtocolType::Mqtt => Color::Blue,
                                 ProtocolType::Http => Color::Green,
                             })
-                            ->icon(fn (ProtocolType $state): string => match ($state) {
-                                ProtocolType::Mqtt => Heroicon::OutlinedSignal->value,
-                                ProtocolType::Http => Heroicon::OutlinedGlobeAlt->value,
+                            ->icon(fn (ProtocolType $state) => match ($state) {
+                                ProtocolType::Mqtt => Heroicon::OutlinedSignal,
+                                ProtocolType::Http => Heroicon::OutlinedGlobeAlt,
                             }),
 
                         TextEntry::make('organization.name')
@@ -70,13 +70,16 @@ class DeviceTypeInfolist
                 Section::make('MQTT Configuration')
                     ->schema([
                         TextEntry::make('protocol_config.broker_host')
-                            ->label('Broker Host'),
+                            ->label('Broker Host')
+                            ->state(fn ($record): ?string => $record->protocol_config?->brokerHost),
 
                         TextEntry::make('protocol_config.broker_port')
-                            ->label('Broker Port'),
+                            ->label('Broker Port')
+                            ->state(fn ($record): ?int => $record->protocol_config?->brokerPort),
 
                         TextEntry::make('protocol_config.username')
                             ->label('Username')
+                            ->state(fn ($record): ?string => $record->protocol_config?->username)
                             ->placeholder('—'),
 
                         IconEntry::make('protocol_config.use_tls')
@@ -85,18 +88,22 @@ class DeviceTypeInfolist
                             ->trueIcon(Heroicon::OutlinedShieldCheck)
                             ->falseIcon(Heroicon::OutlinedShieldExclamation)
                             ->trueColor(Color::Green)
-                            ->falseColor(Color::Gray),
+                            ->falseColor(Color::Gray)
+                            ->state(fn ($record): ?bool => $record->protocol_config?->useTls),
 
                         TextEntry::make('protocol_config.telemetry_topic_template')
                             ->label('Telemetry Topic')
-                            ->copyable(),
+                            ->copyable()
+                            ->state(fn ($record): ?string => $record->protocol_config?->telemetryTopicTemplate),
 
                         TextEntry::make('protocol_config.command_topic_template')
                             ->label('Command Topic')
-                            ->copyable(),
+                            ->copyable()
+                            ->state(fn ($record): ?string => $record->protocol_config?->controlTopicTemplate),
 
                         TextEntry::make('protocol_config.qos')
                             ->label('QoS Level')
+                            ->state(fn ($record): ?int => $record->protocol_config?->qos)
                             ->formatStateUsing(fn ($state): string => match ($state) {
                                 0 => 'At most once (0)',
                                 1 => 'At least once (1)',
@@ -106,7 +113,8 @@ class DeviceTypeInfolist
 
                         IconEntry::make('protocol_config.retain')
                             ->label('Retain Messages')
-                            ->boolean(),
+                            ->boolean()
+                            ->state(fn ($record): ?bool => $record->protocol_config?->retain),
                     ])
                     ->columns(2)
                     ->columnSpanFull()
@@ -119,18 +127,22 @@ class DeviceTypeInfolist
                             ->label('Base URL')
                             ->copyable()
                             ->url(fn ($state): string => $state, shouldOpenInNewTab: true)
-                            ->icon(Heroicon::OutlinedGlobeAlt),
+                            ->icon(Heroicon::OutlinedGlobeAlt)
+                            ->state(fn ($record): ?string => $record->protocol_config?->baseUrl),
 
                         TextEntry::make('protocol_config.telemetry_endpoint')
                             ->label('Telemetry Endpoint')
-                            ->copyable(),
+                            ->copyable()
+                            ->state(fn ($record): ?string => $record->protocol_config?->telemetryEndpoint),
 
                         TextEntry::make('protocol_config.command_endpoint')
                             ->label('Command Endpoint')
-                            ->copyable(),
+                            ->copyable()
+                            ->state(fn ($record): ?string => $record->protocol_config?->controlEndpoint),
 
                         TextEntry::make('protocol_config.method')
                             ->label('HTTP Method')
+                            ->state(fn ($record): ?string => $record->protocol_config?->method)
                             ->badge()
                             ->color(fn ($state): array => match ($state) {
                                 'GET' => Color::Blue,
@@ -142,6 +154,7 @@ class DeviceTypeInfolist
 
                         TextEntry::make('protocol_config.auth_type')
                             ->label('Authentication')
+                            ->state(fn ($record): ?HttpAuthType => $record->protocol_config?->authType)
                             ->formatStateUsing(fn (HttpAuthType $state): string => $state->label())
                             ->badge()
                             ->color(fn (HttpAuthType $state): array => match ($state) {
@@ -152,11 +165,13 @@ class DeviceTypeInfolist
 
                         TextEntry::make('protocol_config.timeout')
                             ->label('Timeout')
-                            ->suffix(' seconds'),
+                            ->suffix(' seconds')
+                            ->state(fn ($record): ?int => $record->protocol_config?->timeout),
 
                         KeyValueEntry::make('protocol_config.headers')
                             ->label('Custom Headers')
                             ->columnSpanFull()
+                            ->state(fn ($record): array => $record->protocol_config?->headers ?? [])
                             ->visible(fn ($record): bool => ! empty($record->protocol_config?->headers)),
                     ])
                     ->columns(2)

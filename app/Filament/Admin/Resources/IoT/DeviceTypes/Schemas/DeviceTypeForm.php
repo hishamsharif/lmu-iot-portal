@@ -48,12 +48,12 @@ class DeviceTypeForm
 
                 Section::make('Protocol Configuration')
                     ->schema([
-                        // MQTT Configuration
                         Grid::make(2)
                             ->schema([
                                 TextInput::make('protocol_config.broker_host')
                                     ->label('Broker Host')
                                     ->required()
+                                    ->placeholder('mqtt.example.com')
                                     ->maxLength(255),
 
                                 TextInput::make('protocol_config.broker_port')
@@ -106,9 +106,16 @@ class DeviceTypeForm
                                     ->default(false)
                                     ->helperText('Keep the last message on the broker'),
                             ])
-                            ->visible(fn (Get $get): bool => $get('default_protocol') === 'mqtt'),
+                            ->visible(function (Get $get): bool {
+                                $protocol = $get('default_protocol');
 
-                        // HTTP Configuration
+                                if ($protocol instanceof ProtocolType) {
+                                    return $protocol === ProtocolType::Mqtt;
+                                }
+
+                                return $protocol === ProtocolType::Mqtt->value;
+                            }),
+
                         Grid::make(2)
                             ->schema([
                                 TextInput::make('protocol_config.base_url')
@@ -179,7 +186,15 @@ class DeviceTypeForm
                                     ->valueLabel('Header Value')
                                     ->columnSpanFull(),
                             ])
-                            ->visible(fn (Get $get): bool => $get('default_protocol') === 'http'),
+                            ->visible(function (Get $get): bool {
+                                $protocol = $get('default_protocol');
+
+                                if ($protocol instanceof ProtocolType) {
+                                    return $protocol === ProtocolType::Http;
+                                }
+
+                                return $protocol === ProtocolType::Http->value;
+                            }),
                     ])
                     ->columnSpanFull()
                     ->description('Configure protocol-specific connection settings'),

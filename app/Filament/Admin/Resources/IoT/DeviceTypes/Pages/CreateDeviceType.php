@@ -18,7 +18,10 @@ class CreateDeviceType extends CreateRecord
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         if (isset($data['default_protocol']) && isset($data['protocol_config'])) {
-            $protocol = ProtocolType::from($data['default_protocol']);
+            $protocolValue = $data['default_protocol'];
+            $protocol = $protocolValue instanceof ProtocolType
+                ? $protocolValue
+                : ProtocolType::from($protocolValue);
             $config = $data['protocol_config'];
 
             $data['protocol_config'] = match ($protocol) {
@@ -39,7 +42,11 @@ class CreateDeviceType extends CreateRecord
                     controlEndpoint: $config['command_endpoint'] ?? null,
                     method: $config['method'] ?? 'POST',
                     headers: $config['headers'] ?? [],
-                    authType: isset($config['auth_type']) ? HttpAuthType::from($config['auth_type']) : HttpAuthType::None,
+                    authType: isset($config['auth_type'])
+                        ? ($config['auth_type'] instanceof HttpAuthType
+                            ? $config['auth_type']
+                            : HttpAuthType::from($config['auth_type']))
+                        : HttpAuthType::None,
                     authToken: $config['auth_token'] ?? null,
                     authUsername: $config['auth_username'] ?? null,
                     authPassword: $config['auth_password'] ?? null,

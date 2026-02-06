@@ -40,9 +40,9 @@ class DeviceTypesTable
                         ProtocolType::Mqtt => Color::Blue,
                         ProtocolType::Http => Color::Green,
                     })
-                    ->icon(fn (ProtocolType $state): string => match ($state) {
-                        ProtocolType::Mqtt => Heroicon::OutlinedSignal->value,
-                        ProtocolType::Http => Heroicon::OutlinedGlobeAlt->value,
+                    ->icon(fn (ProtocolType $state) => match ($state) {
+                        ProtocolType::Mqtt => Heroicon::OutlinedSignal,
+                        ProtocolType::Http => Heroicon::OutlinedGlobeAlt,
                     }),
 
                 IconColumn::make('organization_id')

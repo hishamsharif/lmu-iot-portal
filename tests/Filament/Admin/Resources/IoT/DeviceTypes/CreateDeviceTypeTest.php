@@ -23,21 +23,19 @@ it('can render the create device type page', function (): void {
 
 it('can create a new device type with MQTT protocol', function (): void {
     livewire(CreateDeviceType::class)
+        ->set('data.default_protocol', ProtocolType::Mqtt->value)
         ->fillForm([
             'key' => 'mqtt_energy_meter',
             'name' => 'MQTT Energy Meter',
-            'default_protocol' => ProtocolType::Mqtt->value,
-            'protocol_config' => [
-                'broker_host' => 'mqtt.example.com',
-                'broker_port' => 18883,
-                'username' => 'test_user',
-                'password' => 'test_pass',
-                'use_tls' => true,
-                'telemetry_topic_template' => 'devices/{device_id}/telemetry',
-                'command_topic_template' => 'devices/{device_id}/commands',
-                'qos' => 1,
-                'retain' => false,
-            ],
+            'protocol_config.broker_host' => 'mqtt.example.com',
+            'protocol_config.broker_port' => 18883,
+            'protocol_config.username' => 'test_user',
+            'protocol_config.password' => 'test_pass',
+            'protocol_config.use_tls' => true,
+            'protocol_config.telemetry_topic_template' => 'devices/{device_id}/telemetry',
+            'protocol_config.command_topic_template' => 'devices/{device_id}/commands',
+            'protocol_config.qos' => 1,
+            'protocol_config.retain' => false,
         ])
         ->call('create')
         ->assertHasNoFormErrors();
@@ -51,20 +49,18 @@ it('can create a new device type with MQTT protocol', function (): void {
 
 it('can create a new device type with HTTP protocol', function (): void {
     livewire(CreateDeviceType::class)
+        ->set('data.default_protocol', ProtocolType::Http->value)
         ->fillForm([
             'key' => 'http_temp_sensor',
             'name' => 'HTTP Temperature Sensor',
-            'default_protocol' => ProtocolType::Http->value,
-            'protocol_config' => [
-                'base_url' => 'https://api.example.com',
-                'telemetry_endpoint' => '/telemetry/{device_id}',
-                'command_endpoint' => '/commands/{device_id}',
-                'method' => 'POST',
-                'auth_type' => HttpAuthType::Bearer->value,
-                'auth_token' => 'test_token_123',
-                'timeout' => 30,
-                'headers' => [],
-            ],
+            'protocol_config.base_url' => 'https://api.example.com',
+            'protocol_config.telemetry_endpoint' => '/telemetry/{device_id}',
+            'protocol_config.command_endpoint' => '/commands/{device_id}',
+            'protocol_config.method' => 'POST',
+            'protocol_config.auth_type' => HttpAuthType::Bearer->value,
+            'protocol_config.auth_token' => 'test_token_123',
+            'protocol_config.timeout' => 30,
+            'protocol_config.headers' => [],
         ])
         ->call('create')
         ->assertHasNoFormErrors();
@@ -135,18 +131,16 @@ it('validates key format (lowercase, numbers, underscores only)', function (): v
 
 it('validates MQTT broker port range', function (): void {
     livewire(CreateDeviceType::class)
+        ->set('data.default_protocol', ProtocolType::Mqtt->value)
         ->fillForm([
             'key' => 'mqtt_device',
             'name' => 'MQTT Device',
-            'default_protocol' => ProtocolType::Mqtt->value,
-            'protocol_config' => [
-                'broker_host' => 'mqtt.example.com',
-                'broker_port' => 70000, // Invalid port
-                'telemetry_topic_template' => 'test',
-                'command_topic_template' => 'test',
-                'qos' => 1,
-                'retain' => false,
-            ],
+            'protocol_config.broker_host' => 'mqtt.example.com',
+            'protocol_config.broker_port' => 70000,
+            'protocol_config.telemetry_topic_template' => 'test',
+            'protocol_config.command_topic_template' => 'test',
+            'protocol_config.qos' => 1,
+            'protocol_config.retain' => false,
         ])
         ->call('create')
         ->assertHasFormErrors(['protocol_config.broker_port']);
@@ -154,18 +148,16 @@ it('validates MQTT broker port range', function (): void {
 
 it('validates HTTP base URL format', function (): void {
     livewire(CreateDeviceType::class)
+        ->set('data.default_protocol', ProtocolType::Http->value)
         ->fillForm([
             'key' => 'http_device',
             'name' => 'HTTP Device',
-            'default_protocol' => ProtocolType::Http->value,
-            'protocol_config' => [
-                'base_url' => 'not-a-valid-url',
-                'telemetry_endpoint' => '/telemetry',
-                'command_endpoint' => '/commands',
-                'method' => 'POST',
-                'auth_type' => HttpAuthType::None->value,
-                'timeout' => 30,
-            ],
+            'protocol_config.base_url' => 'not-a-valid-url',
+            'protocol_config.telemetry_endpoint' => '/telemetry',
+            'protocol_config.command_endpoint' => '/commands',
+            'protocol_config.method' => 'POST',
+            'protocol_config.auth_type' => HttpAuthType::None->value,
+            'protocol_config.timeout' => 30,
         ])
         ->call('create')
         ->assertHasFormErrors(['protocol_config.base_url']);

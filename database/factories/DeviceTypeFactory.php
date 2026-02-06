@@ -30,7 +30,7 @@ class DeviceTypeFactory extends Factory
 
         return [
             'organization_id' => null, // Default to global
-            'key' => Str::slug($this->faker->unique()->words(2, true).'_'.Str::lower($this->faker->lexify('???'))),
+            'key' => Str::slug($this->faker->unique()->words(2, true).'_'.Str::lower($this->faker->lexify('???')), '_'),
             'name' => $this->faker->words(3, true),
             'default_protocol' => $protocol,
             'protocol_config' => $protocol === ProtocolType::Mqtt
