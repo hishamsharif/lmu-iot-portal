@@ -106,7 +106,7 @@ class DeviceTypeForm
                                     ->default(false)
                                     ->helperText('Keep the last message on the broker'),
                             ])
-                            ->visible(fn (Get $get): bool => $get('default_protocol') === ProtocolType::Mqtt->value),
+                            ->visible(fn (Get $get): bool => $get('default_protocol') === 'mqtt'),
 
                         // HTTP Configuration
                         Grid::make(2)
@@ -179,7 +179,7 @@ class DeviceTypeForm
                                     ->valueLabel('Header Value')
                                     ->columnSpanFull(),
                             ])
-                            ->visible(fn (Get $get): bool => $get('default_protocol') === ProtocolType::Http->value),
+                            ->visible(fn (Get $get): bool => $get('default_protocol') === 'http'),
                     ])
                     ->columnSpanFull()
                     ->description('Configure protocol-specific connection settings'),
