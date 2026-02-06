@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Filament\Admin\Resources\IoT\DeviceTypes\Pages;
 
+use App\Domain\IoT\DeviceTypes\ValueObjects\Protocol\HttpProtocolConfig;
+use App\Domain\IoT\DeviceTypes\ValueObjects\Protocol\MqttProtocolConfig;
 use App\Domain\IoT\Enums\ProtocolType;
-use App\Domain\IoT\ProtocolConfigs\HttpProtocolConfig;
-use App\Domain\IoT\ProtocolConfigs\MqttProtocolConfig;
 use App\Filament\Admin\Resources\IoT\DeviceTypes\DeviceTypeResource;
 use Filament\Resources\Pages\CreateRecord;
 

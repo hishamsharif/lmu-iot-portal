@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Domain\IoT\Casts;
 
-use App\Domain\IoT\Contracts\ProtocolConfigInterface;
+use App\Domain\IoT\DeviceTypes\ValueObjects\Protocol\HttpProtocolConfig;
+use App\Domain\IoT\DeviceTypes\ValueObjects\Protocol\MqttProtocolConfig;
+use App\Domain\IoT\DeviceTypes\ValueObjects\Protocol\ProtocolConfigInterface;
 use App\Domain\IoT\Enums\ProtocolType;
-use App\Domain\IoT\ProtocolConfigs\HttpProtocolConfig;
-use App\Domain\IoT\ProtocolConfigs\MqttProtocolConfig;
 use Illuminate\Contracts\Database\Eloquent\CastsAttributes;
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;

@@ -2,9 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\IoT\ProtocolConfigs;
-
-use App\Domain\IoT\Contracts\ProtocolConfigInterface;
+namespace App\Domain\IoT\DeviceTypes\ValueObjects\Protocol;
 
 final readonly class MqttProtocolConfig implements ProtocolConfigInterface
 {
@@ -26,11 +24,6 @@ final readonly class MqttProtocolConfig implements ProtocolConfigInterface
         if (! in_array($this->qos, [0, 1, 2], true)) {
             throw new \InvalidArgumentException('QoS must be 0, 1, or 2');
         }
-    }
-
-    public function validate(): bool
-    {
-        return $this->brokerHost !== '';
     }
 
     public function getTelemetryTopicTemplate(): string

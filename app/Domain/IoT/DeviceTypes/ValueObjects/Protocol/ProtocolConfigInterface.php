@@ -2,15 +2,10 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\IoT\Contracts;
+namespace App\Domain\IoT\DeviceTypes\ValueObjects\Protocol;
 
 interface ProtocolConfigInterface
 {
-    /**
-     * Validate the protocol configuration.
-     */
-    public function validate(): bool;
-
     /**
      * Get the telemetry topic template for device data ingestion.
      */

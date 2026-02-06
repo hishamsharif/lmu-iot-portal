@@ -2,9 +2,8 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\IoT\ProtocolConfigs;
+namespace App\Domain\IoT\DeviceTypes\ValueObjects\Protocol;
 
-use App\Domain\IoT\Contracts\ProtocolConfigInterface;
 use App\Domain\IoT\Enums\HttpAuthType;
 
 final readonly class HttpProtocolConfig implements ProtocolConfigInterface
@@ -43,11 +42,6 @@ final readonly class HttpProtocolConfig implements ProtocolConfigInterface
         if ($this->authType === HttpAuthType::Basic && (empty($this->authUsername) || empty($this->authPassword))) {
             throw new \InvalidArgumentException('Basic auth username and password are required');
         }
-    }
-
-    public function validate(): bool
-    {
-        return true;
     }
 
     public function getTelemetryTopicTemplate(): string

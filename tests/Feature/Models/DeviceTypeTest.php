@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Domain\IoT\DeviceTypes\ValueObjects\Protocol\HttpProtocolConfig;
+use App\Domain\IoT\DeviceTypes\ValueObjects\Protocol\MqttProtocolConfig;
 use App\Domain\IoT\Enums\ProtocolType;
 use App\Domain\IoT\Models\DeviceType;
-use App\Domain\IoT\ProtocolConfigs\HttpProtocolConfig;
-use App\Domain\IoT\ProtocolConfigs\MqttProtocolConfig;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 

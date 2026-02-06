@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Domain\IoT\DeviceTypes\ValueObjects\Protocol\HttpProtocolConfig;
+use App\Domain\IoT\DeviceTypes\ValueObjects\Protocol\MqttProtocolConfig;
 use App\Domain\IoT\Enums\HttpAuthType;
 use App\Domain\IoT\Enums\ProtocolType;
 use App\Domain\IoT\Models\DeviceType;
-use App\Domain\IoT\ProtocolConfigs\HttpProtocolConfig;
-use App\Domain\IoT\ProtocolConfigs\MqttProtocolConfig;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\IoT\Models;
 
 use App\Domain\IoT\Casts\ProtocolConfigCast;
-use App\Domain\IoT\Contracts\ProtocolConfigInterface;
+use App\Domain\IoT\DeviceTypes\ValueObjects\Protocol\ProtocolConfigInterface;
 use App\Domain\IoT\Enums\ProtocolType;
 use App\Domain\Shared\Models\Organization;
 use Database\Factories\DeviceTypeFactory;
