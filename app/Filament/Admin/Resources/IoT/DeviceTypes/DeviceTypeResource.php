@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Admin\Resources\IoT\DeviceTypes;
 
-use App\Domain\IoT\Models\DeviceType;
+use App\Domain\DeviceTypes\Models\DeviceType;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;

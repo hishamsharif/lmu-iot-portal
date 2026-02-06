@@ -2,8 +2,8 @@
 
 namespace App\Policies;
 
-use App\Domain\IoT\Models\DeviceType;
-use App\Domain\IoT\Permissions\DeviceTypePermission;
+use App\Domain\DeviceTypes\Models\DeviceType;
+use App\Domain\DeviceTypes\Permissions\DeviceTypePermission;
 use App\Domain\Shared\Models\User;
 
 class DeviceTypePolicy

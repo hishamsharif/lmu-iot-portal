@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use App\Domain\IoT\Enums\HttpAuthType;
-use App\Domain\IoT\Enums\ProtocolType;
-use App\Domain\IoT\Models\DeviceType;
+use App\Domain\DeviceTypes\Enums\HttpAuthType;
+use App\Domain\DeviceTypes\Enums\ProtocolType;
+use App\Domain\DeviceTypes\Models\DeviceType;
 use App\Domain\Shared\Models\User;
 use App\Filament\Admin\Resources\IoT\DeviceTypes\Pages\CreateDeviceType;
 use Illuminate\Foundation\Testing\RefreshDatabase;

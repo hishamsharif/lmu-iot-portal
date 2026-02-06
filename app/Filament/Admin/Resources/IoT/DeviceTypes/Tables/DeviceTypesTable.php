@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Admin\Resources\IoT\DeviceTypes\Tables;
 
-use App\Domain\IoT\Enums\ProtocolType;
+use App\Domain\DeviceTypes\Enums\ProtocolType;
 use Filament\Actions;
 use Filament\Support\Colors\Color;
 use Filament\Support\Icons\Heroicon;

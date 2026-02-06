@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Domain\IoT\Permissions;
+namespace App\Domain\DeviceTypes\Permissions;
 
 use Althinect\EnumPermission\Concerns\HasPermissionGroup;
 
@@ -15,5 +15,4 @@ enum DeviceTypePermission: string
     case DELETE = 'DeviceType.delete';
     case RESTORE = 'DeviceType.restore';
     case FORCE_DELETE = 'DeviceType.force-delete';
-
 }

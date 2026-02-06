@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\IoT\Models;
+namespace App\Domain\DeviceTypes\Models;
 
-use App\Domain\IoT\Casts\ProtocolConfigCast;
-use App\Domain\IoT\DeviceTypes\ValueObjects\Protocol\ProtocolConfigInterface;
-use App\Domain\IoT\Enums\ProtocolType;
+use App\Domain\DeviceTypes\Casts\ProtocolConfigCast;
+use App\Domain\DeviceTypes\Enums\ProtocolType;
+use App\Domain\DeviceTypes\ValueObjects\Protocol\ProtocolConfigInterface;
 use App\Domain\Shared\Models\Organization;
 use Database\Factories\DeviceTypeFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;

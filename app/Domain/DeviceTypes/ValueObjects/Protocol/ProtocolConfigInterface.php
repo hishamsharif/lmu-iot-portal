@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\IoT\DeviceTypes\ValueObjects\Protocol;
+namespace App\Domain\DeviceTypes\ValueObjects\Protocol;
 
 interface ProtocolConfigInterface
 {

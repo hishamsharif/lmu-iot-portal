@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Domain\IoT\Models\DeviceType;
+use App\Domain\DeviceTypes\Models\DeviceType;
 use App\Domain\Shared\Models\User;
 use App\Filament\Admin\Resources\IoT\DeviceTypes\Pages\ViewDeviceType;
 use Illuminate\Foundation\Testing\RefreshDatabase;

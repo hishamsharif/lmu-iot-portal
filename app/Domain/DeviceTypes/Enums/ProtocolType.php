@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\IoT\Enums;
+namespace App\Domain\DeviceTypes\Enums;
 
 enum ProtocolType: string
 {

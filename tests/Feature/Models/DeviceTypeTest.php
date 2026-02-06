@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-use App\Domain\IoT\DeviceTypes\ValueObjects\Protocol\HttpProtocolConfig;
-use App\Domain\IoT\DeviceTypes\ValueObjects\Protocol\MqttProtocolConfig;
-use App\Domain\IoT\Enums\ProtocolType;
-use App\Domain\IoT\Models\DeviceType;
+use App\Domain\DeviceTypes\Enums\ProtocolType;
+use App\Domain\DeviceTypes\Models\DeviceType;
+use App\Domain\DeviceTypes\ValueObjects\Protocol\HttpProtocolConfig;
+use App\Domain\DeviceTypes\ValueObjects\Protocol\MqttProtocolConfig;
 use App\Domain\Shared\Models\Organization;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -135,7 +135,7 @@ test('http protocol config validates url format', function (): void {
         telemetryEndpoint: '/telemetry',
         controlEndpoint: '/commands',
         method: 'POST',
-        authType: \App\Domain\IoT\Enums\HttpAuthType::None,
+        authType: \App\Domain\DeviceTypes\Enums\HttpAuthType::None,
         timeout: 30
     ))->toThrow(\InvalidArgumentException::class, 'Base URL must be a valid URL');
 });

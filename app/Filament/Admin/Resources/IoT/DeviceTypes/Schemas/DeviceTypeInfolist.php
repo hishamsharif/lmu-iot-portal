@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Filament\Admin\Resources\IoT\DeviceTypes\Schemas;
 
-use App\Domain\IoT\Enums\HttpAuthType;
-use App\Domain\IoT\Enums\ProtocolType;
+use App\Domain\DeviceTypes\Enums\HttpAuthType;
+use App\Domain\DeviceTypes\Enums\ProtocolType;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\KeyValueEntry;
 use Filament\Infolists\Components\TextEntry;

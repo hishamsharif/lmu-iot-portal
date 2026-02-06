@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\IoT\Casts;
+namespace App\Domain\DeviceTypes\Casts;
 
-use App\Domain\IoT\DeviceTypes\ValueObjects\Protocol\HttpProtocolConfig;
-use App\Domain\IoT\DeviceTypes\ValueObjects\Protocol\MqttProtocolConfig;
-use App\Domain\IoT\DeviceTypes\ValueObjects\Protocol\ProtocolConfigInterface;
-use App\Domain\IoT\Enums\ProtocolType;
+use App\Domain\DeviceTypes\Enums\ProtocolType;
+use App\Domain\DeviceTypes\ValueObjects\Protocol\HttpProtocolConfig;
+use App\Domain\DeviceTypes\ValueObjects\Protocol\MqttProtocolConfig;
+use App\Domain\DeviceTypes\ValueObjects\Protocol\ProtocolConfigInterface;
 use Illuminate\Contracts\Database\Eloquent\CastsAttributes;
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;

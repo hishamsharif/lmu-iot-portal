@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
-use App\Domain\IoT\DeviceTypes\ValueObjects\Protocol\HttpProtocolConfig;
-use App\Domain\IoT\DeviceTypes\ValueObjects\Protocol\MqttProtocolConfig;
-use App\Domain\IoT\Enums\HttpAuthType;
-use App\Domain\IoT\Enums\ProtocolType;
-use App\Domain\IoT\Models\DeviceType;
+use App\Domain\DeviceTypes\Enums\HttpAuthType;
+use App\Domain\DeviceTypes\Enums\ProtocolType;
+use App\Domain\DeviceTypes\Models\DeviceType;
+use App\Domain\DeviceTypes\ValueObjects\Protocol\HttpProtocolConfig;
+use App\Domain\DeviceTypes\ValueObjects\Protocol\MqttProtocolConfig;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Domain\IoT\Models\DeviceType>
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Domain\DeviceTypes\Models\DeviceType>
  */
 class DeviceTypeFactory extends Factory
 {
