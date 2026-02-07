@@ -10,6 +10,7 @@ use App\Domain\DeviceSchema\Models\ParameterDefinition;
 use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
 use App\Domain\Shared\Models\User;
 use App\Filament\Admin\Resources\DeviceSchema\DeviceSchemaVersions\Pages\EditDeviceSchemaVersion;
+use App\Filament\Admin\Resources\DeviceSchema\DeviceSchemaVersions\Pages\ViewDeviceSchemaVersion;
 use App\Filament\Admin\Resources\DeviceSchema\DeviceSchemaVersions\RelationManagers\ParameterDefinitionsRelationManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -91,4 +92,44 @@ it('can create a subscribe parameter with default_value', function (): void {
     expect($parameter)->not->toBeNull()
         ->and($parameter->default_value)->toBe(50)
         ->and($parameter->type)->toBe(ParameterDataType::Integer);
+});
+
+it('uses a slide over modal for the edit action', function (): void {
+    $topic = SchemaVersionTopic::factory()->publish()->create([
+        'device_schema_version_id' => $this->version->id,
+    ]);
+
+    $parameter = ParameterDefinition::factory()->create([
+        'schema_version_topic_id' => $topic->id,
+        'type' => ParameterDataType::Decimal,
+    ]);
+
+    livewire(ParameterDefinitionsRelationManager::class, [
+        'ownerRecord' => $this->version,
+        'pageClass' => EditDeviceSchemaVersion::class,
+    ])
+        ->assertTableActionExists(
+            'edit',
+            fn (\Filament\Actions\Action $action): bool => $action->isModalSlideOver(),
+            $parameter,
+        );
+});
+
+it('is editable on the parent view page', function (): void {
+    $topic = SchemaVersionTopic::factory()->publish()->create([
+        'device_schema_version_id' => $this->version->id,
+    ]);
+
+    $parameter = ParameterDefinition::factory()->create([
+        'schema_version_topic_id' => $topic->id,
+        'type' => ParameterDataType::Decimal,
+    ]);
+
+    livewire(ParameterDefinitionsRelationManager::class, [
+        'ownerRecord' => $this->version,
+        'pageClass' => ViewDeviceSchemaVersion::class,
+    ])
+        ->assertOk()
+        ->assertTableActionVisible('edit', $parameter)
+        ->assertTableActionEnabled('edit', $parameter);
 });
