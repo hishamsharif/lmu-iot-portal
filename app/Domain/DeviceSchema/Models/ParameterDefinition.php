@@ -10,6 +10,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property ParameterDataType $type
+ */
 class ParameterDefinition extends Model
 {
     /** @use HasFactory<\Database\Factories\Domain\DeviceSchema\Models\ParameterDefinitionFactory> */
@@ -29,6 +32,7 @@ class ParameterDefinition extends Model
             'is_active' => 'bool',
             'validation_rules' => 'array',
             'mutation_expression' => 'array',
+            'default_value' => 'json',
         ];
     }
 
@@ -38,6 +42,44 @@ class ParameterDefinition extends Model
     public function topic(): BelongsTo
     {
         return $this->belongsTo(SchemaVersionTopic::class, 'schema_version_topic_id');
+    }
+
+    /**
+     * Get the resolved default value, falling back to a type-appropriate default.
+     */
+    public function resolvedDefaultValue(): mixed
+    {
+        if ($this->default_value !== null) {
+            return $this->default_value;
+        }
+
+        return match ($this->type) {
+            ParameterDataType::Integer => 0,
+            ParameterDataType::Decimal => 0.0,
+            ParameterDataType::Boolean => false,
+            ParameterDataType::String => '',
+            ParameterDataType::Json => [],
+        };
+    }
+
+    /**
+     * Place a value into a payload array at this parameter's json_path.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    public function placeValue(array $payload, mixed $value): array
+    {
+        $path = $this->normalizeJsonPath($this->json_path);
+
+        if ($path === null) {
+            return $payload;
+        }
+
+        data_set($payload, $path, $value);
+
+        /** @var array<string, mixed> $payload */
+        return $payload;
     }
 
     /**

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Admin\Resources\DeviceManagement\DeviceTypes;
 
 use App\Domain\DeviceManagement\Models\DeviceType;
+use App\Filament\Admin\Resources\DeviceManagement\DeviceTypes\RelationManagers\DeviceSchemasRelationManager;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -47,7 +48,7 @@ class DeviceTypeResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            DeviceSchemasRelationManager::class,
         ];
     }
 

@@ -6,6 +6,7 @@ namespace App\Filament\Portal\Resources\DeviceManagement\Devices;
 
 use App\Domain\DeviceManagement\Models\Device;
 use App\Domain\DeviceSchema\Models\DeviceSchemaVersion;
+use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
 use App\Filament\Admin\Resources\DeviceManagement\Devices\RelationManagers\TelemetryLogsRelationManager;
 use BackedEnum;
 use Filament\Actions\EditAction;
@@ -171,6 +172,34 @@ class DeviceResource extends Resource
                     ->schema([
                         KeyValueEntry::make('metadata')
                             ->columnSpanFull(),
+                    ]),
+
+                Section::make('Command Payload Samples')
+                    ->description('Example JSON payloads this device expects on command (subscribe) topics, using schema defaults.')
+                    ->schema([
+                        KeyValueEntry::make('command_payload_samples')
+                            ->valueLabel('JSON')
+                            ->columnSpanFull()
+                            ->state(function (Device $record): array {
+                                $record->loadMissing('schemaVersion.topics.parameters');
+
+                                $topics = $record->schemaVersion?->topics
+                                    ?->filter(fn (SchemaVersionTopic $topic): bool => $topic->isSubscribe())
+                                    ->sortBy('sequence');
+
+                                if (! $topics || $topics->isEmpty()) {
+                                    return [];
+                                }
+
+                                return $topics->mapWithKeys(function (SchemaVersionTopic $topic): array {
+                                    $template = $topic->buildCommandPayloadTemplate();
+
+                                    return [
+                                        $topic->key => json_encode($template, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}',
+                                    ];
+                                })->all();
+                            })
+                            ->visible(fn (Device $record): bool => $record->getAttribute('device_schema_version_id') !== null),
                     ]),
             ]);
     }

@@ -6,6 +6,8 @@ namespace App\Filament\Admin\Resources\DeviceManagement\DeviceTypes\Schemas;
 
 use App\Domain\DeviceManagement\Enums\HttpAuthType;
 use App\Domain\DeviceManagement\Enums\ProtocolType;
+use App\Domain\DeviceManagement\Models\DeviceType;
+use App\Filament\Admin\Resources\Shared\Organizations\OrganizationResource;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\KeyValueEntry;
 use Filament\Infolists\Components\TextEntry;
@@ -49,7 +51,10 @@ class DeviceTypeInfolist
                             ->icon(fn ($record) => $record->organization_id
                                 ? Heroicon::OutlinedBuildingOffice
                                 : Heroicon::OutlinedGlobeAlt
-                            ),
+                            )
+                            ->url(fn (DeviceType $record): ?string => $record->organization_id
+                                ? OrganizationResource::getUrl('view', ['record' => $record->organization_id])
+                                : null),
                     ])
                     ->columns(2)
                     ->columnSpan(2),

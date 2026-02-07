@@ -49,4 +49,20 @@ class ParameterDefinitionFactory extends Factory
             'is_active' => $this->faker->boolean(90),
         ];
     }
+
+    /**
+     * State for subscribe (command) parameters — omits telemetry-only fields
+     * and sets a sensible default_value based on the data type.
+     */
+    public function subscribe(): static
+    {
+        return $this->state(fn () => [
+            'schema_version_topic_id' => SchemaVersionTopic::factory()->subscribe(),
+            'json_path' => $this->faker->unique()->slug(1),
+            'is_critical' => false,
+            'validation_error_code' => null,
+            'mutation_expression' => null,
+            'default_value' => 0,
+        ]);
+    }
 }

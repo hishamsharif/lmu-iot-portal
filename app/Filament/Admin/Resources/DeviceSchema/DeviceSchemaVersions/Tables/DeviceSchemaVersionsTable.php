@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Filament\Admin\Resources\DeviceSchema\DeviceSchemaVersions\Tables;
 
+use App\Domain\DeviceSchema\Models\DeviceSchemaVersion;
+use App\Filament\Admin\Resources\DeviceSchema\DeviceSchemas\DeviceSchemaResource;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -16,7 +18,10 @@ class DeviceSchemaVersionsTable
                 TextColumn::make('schema.name')
                     ->label('Device Schema')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->url(fn (DeviceSchemaVersion $record): ?string => $record->device_schema_id
+                        ? DeviceSchemaResource::getUrl('view', ['record' => $record->device_schema_id])
+                        : null),
 
                 TextColumn::make('version')
                     ->sortable(),

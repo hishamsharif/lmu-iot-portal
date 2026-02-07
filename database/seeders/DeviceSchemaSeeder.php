@@ -319,5 +319,157 @@ class DeviceSchemaSeeder extends Seeder
             'dependencies' => ['power_l1', 'power_l2', 'power_l3'],
             'json_path' => 'computed.total_power',
         ]);
+
+        $this->seedSmartFan();
+    }
+
+    /**
+     * Seed a smart fan device type with both publish (telemetry) and subscribe (command) topics.
+     */
+    private function seedSmartFan(): void
+    {
+        $smartFanType = DeviceType::firstOrCreate(
+            ['key' => 'smart_fan'],
+            [
+                'organization_id' => null,
+                'name' => 'Smart Fan',
+                'default_protocol' => ProtocolType::Mqtt,
+                'protocol_config' => (new MqttProtocolConfig(
+                    brokerHost: 'mqtt.iot-platform.local',
+                    brokerPort: 1883,
+                    username: 'smart_fan',
+                    password: 'fan_password',
+                    useTls: false,
+                    baseTopic: 'devices/fan',
+                ))->toArray(),
+            ]
+        );
+
+        $fanSchema = DeviceSchema::firstOrCreate([
+            'device_type_id' => $smartFanType->id,
+            'name' => 'Smart Fan Contract',
+        ]);
+
+        $fanVersion = DeviceSchemaVersion::firstOrCreate([
+            'device_schema_id' => $fanSchema->id,
+            'version' => 1,
+        ], [
+            'status' => 'active',
+            'notes' => 'Smart fan with telemetry and command topics',
+        ]);
+
+        $fanStatusTopic = SchemaVersionTopic::firstOrCreate([
+            'device_schema_version_id' => $fanVersion->id,
+            'key' => 'fan_status',
+        ], [
+            'label' => 'Fan Status',
+            'direction' => TopicDirection::Publish,
+            'suffix' => 'status',
+            'description' => 'Fan telemetry: speed, light state, and operating mode',
+            'qos' => 1,
+            'retain' => true,
+            'sequence' => 0,
+        ]);
+
+        ParameterDefinition::firstOrCreate([
+            'schema_version_topic_id' => $fanStatusTopic->id,
+            'key' => 'fan_speed',
+        ], [
+            'label' => 'Fan Speed',
+            'json_path' => 'fan_speed',
+            'type' => ParameterDataType::Integer,
+            'unit' => 'RPM',
+            'required' => true,
+            'is_critical' => false,
+            'validation_rules' => ['min' => 0, 'max' => 100],
+            'validation_error_code' => 'FAN_SPEED_RANGE',
+            'sequence' => 1,
+            'is_active' => true,
+        ]);
+
+        ParameterDefinition::firstOrCreate([
+            'schema_version_topic_id' => $fanStatusTopic->id,
+            'key' => 'light_state',
+        ], [
+            'label' => 'Light State',
+            'json_path' => 'light_state',
+            'type' => ParameterDataType::Boolean,
+            'required' => true,
+            'is_critical' => false,
+            'sequence' => 2,
+            'is_active' => true,
+        ]);
+
+        ParameterDefinition::firstOrCreate([
+            'schema_version_topic_id' => $fanStatusTopic->id,
+            'key' => 'mode',
+        ], [
+            'label' => 'Operating Mode',
+            'json_path' => 'mode',
+            'type' => ParameterDataType::String,
+            'required' => false,
+            'is_critical' => false,
+            'validation_rules' => ['enum' => ['cooling', 'heating', 'auto']],
+            'validation_error_code' => 'INVALID_MODE',
+            'sequence' => 3,
+            'is_active' => true,
+        ]);
+
+        $fanControlTopic = SchemaVersionTopic::firstOrCreate([
+            'device_schema_version_id' => $fanVersion->id,
+            'key' => 'fan_control',
+        ], [
+            'label' => 'Fan Control',
+            'direction' => TopicDirection::Subscribe,
+            'suffix' => 'control',
+            'description' => 'Command topic to control fan speed, light, and mode',
+            'qos' => 1,
+            'retain' => false,
+            'sequence' => 1,
+        ]);
+
+        ParameterDefinition::firstOrCreate([
+            'schema_version_topic_id' => $fanControlTopic->id,
+            'key' => 'fan_speed',
+        ], [
+            'label' => 'Fan Speed',
+            'json_path' => 'fan_speed',
+            'type' => ParameterDataType::Integer,
+            'required' => true,
+            'is_critical' => false,
+            'default_value' => 0,
+            'validation_rules' => ['min' => 0, 'max' => 100],
+            'sequence' => 1,
+            'is_active' => true,
+        ]);
+
+        ParameterDefinition::firstOrCreate([
+            'schema_version_topic_id' => $fanControlTopic->id,
+            'key' => 'light_state',
+        ], [
+            'label' => 'Light State',
+            'json_path' => 'light_state',
+            'type' => ParameterDataType::Boolean,
+            'required' => true,
+            'is_critical' => false,
+            'default_value' => false,
+            'sequence' => 2,
+            'is_active' => true,
+        ]);
+
+        ParameterDefinition::firstOrCreate([
+            'schema_version_topic_id' => $fanControlTopic->id,
+            'key' => 'mode',
+        ], [
+            'label' => 'Operating Mode',
+            'json_path' => 'mode',
+            'type' => ParameterDataType::String,
+            'required' => false,
+            'is_critical' => false,
+            'default_value' => 'auto',
+            'validation_rules' => ['enum' => ['cooling', 'heating', 'auto']],
+            'sequence' => 3,
+            'is_active' => true,
+        ]);
     }
 }

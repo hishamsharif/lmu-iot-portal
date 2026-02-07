@@ -20,6 +20,12 @@ beforeEach(function (): void {
     $this->actingAs($this->user);
 
     ParameterDefinitionsRelationManager::skipAuthorization();
+
+    $this->deviceType = DeviceType::factory()->mqtt()->create();
+    $this->schema = DeviceSchema::factory()->forDeviceType($this->deviceType)->create();
+    $this->version = DeviceSchemaVersion::factory()->create([
+        'device_schema_id' => $this->schema->id,
+    ]);
 });
 
 afterEach(function (): void {
@@ -27,14 +33,8 @@ afterEach(function (): void {
 });
 
 it('validates unique key per schema version topic', function (): void {
-    $deviceType = DeviceType::factory()->mqtt()->create();
-    $schema = DeviceSchema::factory()->forDeviceType($deviceType)->create();
-    $version = DeviceSchemaVersion::factory()->create([
-        'device_schema_id' => $schema->id,
-    ]);
-
     $topic = SchemaVersionTopic::factory()->publish()->create([
-        'device_schema_version_id' => $version->id,
+        'device_schema_version_id' => $this->version->id,
     ]);
 
     ParameterDefinition::factory()->create([
@@ -44,7 +44,7 @@ it('validates unique key per schema version topic', function (): void {
     ]);
 
     livewire(ParameterDefinitionsRelationManager::class, [
-        'ownerRecord' => $version,
+        'ownerRecord' => $this->version,
         'pageClass' => EditDeviceSchemaVersion::class,
     ])
         ->callTableAction('create', data: [
@@ -59,4 +59,36 @@ it('validates unique key per schema version topic', function (): void {
             'is_active' => true,
         ])
         ->assertHasFormErrors(['key' => 'unique']);
+});
+
+it('can create a subscribe parameter with default_value', function (): void {
+    $topic = SchemaVersionTopic::factory()->subscribe()->create([
+        'device_schema_version_id' => $this->version->id,
+    ]);
+
+    livewire(ParameterDefinitionsRelationManager::class, [
+        'ownerRecord' => $this->version,
+        'pageClass' => EditDeviceSchemaVersion::class,
+    ])
+        ->callTableAction('create', data: [
+            'schema_version_topic_id' => $topic->id,
+            'key' => 'fan_speed',
+            'label' => 'Fan Speed',
+            'json_path' => 'fan_speed',
+            'type' => ParameterDataType::Integer->value,
+            'default_value' => '50',
+            'required' => true,
+            'is_critical' => false,
+            'sequence' => 1,
+            'is_active' => true,
+        ])
+        ->assertHasNoFormErrors();
+
+    $parameter = ParameterDefinition::where('key', 'fan_speed')
+        ->where('schema_version_topic_id', $topic->id)
+        ->first();
+
+    expect($parameter)->not->toBeNull()
+        ->and($parameter->default_value)->toBe(50)
+        ->and($parameter->type)->toBe(ParameterDataType::Integer);
 });

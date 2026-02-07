@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Filament\Admin\Resources\DeviceSchema\DeviceSchemaVersions\Schemas;
 
+use App\Domain\DeviceSchema\Models\DeviceSchemaVersion;
+use App\Filament\Admin\Resources\DeviceSchema\DeviceSchemas\DeviceSchemaResource;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -19,7 +21,10 @@ class DeviceSchemaVersionInfolist
                     ->schema([
                         TextEntry::make('schema.name')
                             ->label('Device Schema')
-                            ->icon(Heroicon::OutlinedRectangleStack),
+                            ->icon(Heroicon::OutlinedRectangleStack)
+                            ->url(fn (DeviceSchemaVersion $record): ?string => $record->device_schema_id
+                                ? DeviceSchemaResource::getUrl('view', ['record' => $record->device_schema_id])
+                                : null),
                         TextEntry::make('version')
                             ->label('Version'),
                         TextEntry::make('status')

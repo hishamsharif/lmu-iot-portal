@@ -82,4 +82,28 @@ class SchemaVersionTopic extends Model
     {
         return $this->direction === TopicDirection::Subscribe;
     }
+
+    /**
+     * Build a JSON payload template from this topic's active subscribe parameters.
+     *
+     * Each parameter's json_path determines where its default value is placed
+     * in the resulting nested array structure.
+     *
+     * @return array<string, mixed>
+     */
+    public function buildCommandPayloadTemplate(): array
+    {
+        $this->loadMissing('parameters');
+
+        $payload = [];
+
+        $this->parameters
+            ->where('is_active', true)
+            ->sortBy('sequence')
+            ->each(function (ParameterDefinition $parameter) use (&$payload): void {
+                $payload = $parameter->placeValue($payload, $parameter->resolvedDefaultValue());
+            });
+
+        return $payload;
+    }
 }

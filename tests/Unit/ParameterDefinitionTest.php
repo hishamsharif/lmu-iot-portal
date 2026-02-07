@@ -58,3 +58,69 @@ it('validates required and critical flags', function (): void {
         ->and($result['is_critical'])->toBeTrue()
         ->and($result['error_code'])->toBe('REQUIRED');
 });
+
+it('returns explicit default value when set', function (): void {
+    $definition = new ParameterDefinition([
+        'type' => ParameterDataType::Integer,
+        'default_value' => 42,
+    ]);
+
+    expect($definition->resolvedDefaultValue())->toBe(42);
+});
+
+it('returns type-appropriate default when no explicit default is set', function (ParameterDataType $type, mixed $expected): void {
+    $definition = new ParameterDefinition([
+        'type' => $type,
+        'default_value' => null,
+    ]);
+
+    expect($definition->resolvedDefaultValue())->toBe($expected);
+})->with([
+    'integer' => [ParameterDataType::Integer, 0],
+    'decimal' => [ParameterDataType::Decimal, 0.0],
+    'boolean' => [ParameterDataType::Boolean, false],
+    'string' => [ParameterDataType::String, ''],
+    'json' => [ParameterDataType::Json, []],
+]);
+
+it('places a value into a flat payload using json_path', function (): void {
+    $definition = new ParameterDefinition([
+        'json_path' => 'fan_speed',
+        'type' => ParameterDataType::Integer,
+    ]);
+
+    $payload = $definition->placeValue([], 75);
+
+    expect($payload)->toBe(['fan_speed' => 75]);
+});
+
+it('places a value into a nested payload using json_path', function (): void {
+    $definition = new ParameterDefinition([
+        'json_path' => 'status.fan_speed',
+        'type' => ParameterDataType::Integer,
+    ]);
+
+    $payload = $definition->placeValue(['status' => ['light' => true]], 50);
+
+    expect($payload)->toBe([
+        'status' => [
+            'light' => true,
+            'fan_speed' => 50,
+        ],
+    ]);
+});
+
+it('places a value into a nested payload using dollar-prefix json_path', function (): void {
+    $definition = new ParameterDefinition([
+        'json_path' => '$.config.mode',
+        'type' => ParameterDataType::String,
+    ]);
+
+    $payload = $definition->placeValue([], 'auto');
+
+    expect($payload)->toBe([
+        'config' => [
+            'mode' => 'auto',
+        ],
+    ]);
+});

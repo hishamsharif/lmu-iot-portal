@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Filament\Admin\Resources\DeviceManagement\Devices\Tables;
 
+use App\Domain\DeviceManagement\Models\Device;
+use App\Filament\Admin\Resources\DeviceManagement\DeviceTypes\DeviceTypeResource;
+use App\Filament\Admin\Resources\Shared\Organizations\OrganizationResource;
 use Filament\Actions;
 use Filament\Support\Colors\Color;
 use Filament\Tables\Columns\IconColumn;
@@ -26,12 +29,18 @@ class DevicesTable
                 TextColumn::make('organization.name')
                     ->label('Organization')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->url(fn (Device $record): ?string => $record->organization_id
+                        ? OrganizationResource::getUrl('view', ['record' => $record->organization_id])
+                        : null),
 
                 TextColumn::make('deviceType.name')
                     ->label('Type')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->url(fn (Device $record): ?string => $record->device_type_id
+                        ? DeviceTypeResource::getUrl('view', ['record' => $record->device_type_id])
+                        : null),
 
                 IconColumn::make('is_active')
                     ->label('Active')
