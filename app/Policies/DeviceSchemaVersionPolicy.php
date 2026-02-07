@@ -2,8 +2,8 @@
 
 namespace App\Policies;
 
-use App\Domain\IoT\Models\DeviceSchemaVersion;
-use App\Domain\IoT\Permissions\DeviceSchemaVersionPermission;
+use App\Domain\DeviceSchema\Models\DeviceSchemaVersion;
+use App\Domain\DeviceSchema\Permissions\DeviceSchemaVersionPermission;
 use App\Domain\Shared\Models\User;
 
 class DeviceSchemaVersionPolicy

@@ -2,8 +2,8 @@
 
 namespace App\Policies;
 
-use App\Domain\IoT\Models\ParameterDefinition;
-use App\Domain\IoT\Permissions\ParameterDefinitionPermission;
+use App\Domain\DeviceSchema\Models\ParameterDefinition;
+use App\Domain\DeviceSchema\Permissions\ParameterDefinitionPermission;
 use App\Domain\Shared\Models\User;
 
 class ParameterDefinitionPolicy

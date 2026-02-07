@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use App\Domain\IoT\Models\DerivedParameterDefinition;
-use App\Domain\IoT\Permissions\DerivedParameterDefinitionPermission;
+use App\Domain\DeviceSchema\Models\DerivedParameterDefinition;
+use App\Domain\DeviceSchema\Permissions\DerivedParameterDefinitionPermission;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;

@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use App\Domain\IoT\Models\DeviceSchema;
-use App\Domain\IoT\Permissions\DeviceSchemaPermission;
+use App\Domain\DeviceSchema\Models\DeviceSchema;
+use App\Domain\DeviceSchema\Permissions\DeviceSchemaPermission;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;

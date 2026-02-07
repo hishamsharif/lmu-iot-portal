@@ -2,9 +2,9 @@
 
 namespace App\Policies;
 
-use App\Domain\IoT\Models\DeviceTelemetryLog;
-use App\Domain\IoT\Permissions\DeviceTelemetryLogPermission;
 use App\Domain\Shared\Models\User;
+use App\Domain\Telemetry\Models\DeviceTelemetryLog;
+use App\Domain\Telemetry\Permissions\DeviceTelemetryLogPermission;
 
 class DeviceTelemetryLogPolicy
 {

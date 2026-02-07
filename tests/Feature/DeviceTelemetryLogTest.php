@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-use App\Domain\IoT\Enums\ParameterDataType;
-use App\Domain\IoT\Enums\ValidationStatus;
-use App\Domain\IoT\Models\DerivedParameterDefinition;
-use App\Domain\IoT\Models\Device;
-use App\Domain\IoT\Models\DeviceSchemaVersion;
-use App\Domain\IoT\Models\DeviceTelemetryLog;
-use App\Domain\IoT\Models\ParameterDefinition;
-use App\Domain\IoT\Models\SchemaVersionTopic;
-use App\Domain\IoT\Support\TelemetryLogRecorder;
+use App\Domain\DeviceManagement\Models\Device;
+use App\Domain\DeviceSchema\Enums\ParameterDataType;
+use App\Domain\DeviceSchema\Models\DerivedParameterDefinition;
+use App\Domain\DeviceSchema\Models\DeviceSchemaVersion;
+use App\Domain\DeviceSchema\Models\ParameterDefinition;
+use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
+use App\Domain\Telemetry\Enums\ValidationStatus;
+use App\Domain\Telemetry\Models\DeviceTelemetryLog;
+use App\Domain\Telemetry\Services\TelemetryLogRecorder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 

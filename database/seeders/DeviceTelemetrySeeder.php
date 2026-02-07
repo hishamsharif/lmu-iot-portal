@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
-use App\Domain\DeviceTypes\Models\DeviceType;
-use App\Domain\IoT\Models\Device;
-use App\Domain\IoT\Models\DeviceSchema;
-use App\Domain\IoT\Support\TelemetryLogRecorder;
+use App\Domain\DeviceManagement\Models\Device;
+use App\Domain\DeviceManagement\Models\DeviceType;
+use App\Domain\DeviceSchema\Models\DeviceSchema;
 use App\Domain\Shared\Models\Organization;
+use App\Domain\Telemetry\Services\TelemetryLogRecorder;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 

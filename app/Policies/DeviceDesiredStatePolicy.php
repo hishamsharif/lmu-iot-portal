@@ -2,8 +2,8 @@
 
 namespace App\Policies;
 
-use App\Domain\IoT\Models\DeviceDesiredState;
-use App\Domain\IoT\Permissions\DeviceDesiredStatePermission;
+use App\Domain\DeviceControl\Models\DeviceDesiredState;
+use App\Domain\DeviceControl\Permissions\DeviceDesiredStatePermission;
 use App\Domain\Shared\Models\User;
 
 class DeviceDesiredStatePolicy

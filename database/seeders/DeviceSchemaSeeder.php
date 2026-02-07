@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
-use App\Domain\DeviceTypes\Enums\ProtocolType;
-use App\Domain\DeviceTypes\Models\DeviceType;
-use App\Domain\DeviceTypes\ValueObjects\Protocol\MqttProtocolConfig;
-use App\Domain\IoT\Enums\ParameterDataType;
-use App\Domain\IoT\Enums\TopicDirection;
-use App\Domain\IoT\Models\DerivedParameterDefinition;
-use App\Domain\IoT\Models\DeviceSchema;
-use App\Domain\IoT\Models\DeviceSchemaVersion;
-use App\Domain\IoT\Models\ParameterDefinition;
-use App\Domain\IoT\Models\SchemaVersionTopic;
+use App\Domain\DeviceManagement\Enums\ProtocolType;
+use App\Domain\DeviceManagement\Models\DeviceType;
+use App\Domain\DeviceManagement\ValueObjects\Protocol\MqttProtocolConfig;
+use App\Domain\DeviceSchema\Enums\ParameterDataType;
+use App\Domain\DeviceSchema\Enums\TopicDirection;
+use App\Domain\DeviceSchema\Models\DerivedParameterDefinition;
+use App\Domain\DeviceSchema\Models\DeviceSchema;
+use App\Domain\DeviceSchema\Models\DeviceSchemaVersion;
+use App\Domain\DeviceSchema\Models\ParameterDefinition;
+use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
 use Illuminate\Database\Seeder;
 
 class DeviceSchemaSeeder extends Seeder

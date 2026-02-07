@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
-use App\Domain\DeviceTypes\Enums\HttpAuthType;
-use App\Domain\DeviceTypes\Enums\ProtocolType;
-use App\Domain\DeviceTypes\Models\DeviceType;
-use App\Domain\DeviceTypes\ValueObjects\Protocol\HttpProtocolConfig;
-use App\Domain\DeviceTypes\ValueObjects\Protocol\MqttProtocolConfig;
+use App\Domain\DeviceManagement\Enums\HttpAuthType;
+use App\Domain\DeviceManagement\Enums\ProtocolType;
+use App\Domain\DeviceManagement\Models\DeviceType;
+use App\Domain\DeviceManagement\ValueObjects\Protocol\HttpProtocolConfig;
+use App\Domain\DeviceManagement\ValueObjects\Protocol\MqttProtocolConfig;
 use Illuminate\Database\Seeder;
 
 class DeviceTypeSeeder extends Seeder

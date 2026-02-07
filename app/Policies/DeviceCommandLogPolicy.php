@@ -2,8 +2,8 @@
 
 namespace App\Policies;
 
-use App\Domain\IoT\Models\DeviceCommandLog;
-use App\Domain\IoT\Permissions\DeviceCommandLogPermission;
+use App\Domain\DeviceControl\Models\DeviceCommandLog;
+use App\Domain\DeviceControl\Permissions\DeviceCommandLogPermission;
 use App\Domain\Shared\Models\User;
 
 class DeviceCommandLogPolicy

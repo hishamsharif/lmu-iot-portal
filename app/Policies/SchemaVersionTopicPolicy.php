@@ -2,8 +2,8 @@
 
 namespace App\Policies;
 
-use App\Domain\IoT\Models\SchemaVersionTopic;
-use App\Domain\IoT\Permissions\SchemaVersionTopicPermission;
+use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
+use App\Domain\DeviceSchema\Permissions\SchemaVersionTopicPermission;
 use App\Domain\Shared\Models\User;
 
 class SchemaVersionTopicPolicy

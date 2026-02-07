@@ -2,8 +2,8 @@
 
 namespace App\Policies;
 
-use App\Domain\IoT\Models\DeviceSchema;
-use App\Domain\IoT\Permissions\DeviceSchemaPermission;
+use App\Domain\DeviceSchema\Models\DeviceSchema;
+use App\Domain\DeviceSchema\Permissions\DeviceSchemaPermission;
 use App\Domain\Shared\Models\User;
 
 class DeviceSchemaPolicy

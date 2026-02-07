@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use App\Domain\IoT\Enums\ParameterDataType;
-use App\Domain\IoT\Models\ParameterDefinition;
+use App\Domain\DeviceSchema\Enums\ParameterDataType;
+use App\Domain\DeviceSchema\Models\ParameterDefinition;
 use Tests\TestCase;
 
 uses(TestCase::class);
