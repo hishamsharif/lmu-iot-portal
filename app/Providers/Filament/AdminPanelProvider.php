@@ -9,6 +9,7 @@ use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
+use Filament\Support\Assets\Js;
 use Filament\Support\Colors\Color;
 use Filament\Widgets\AccountWidget;
 use Filament\Widgets\FilamentInfoWidget;
@@ -18,13 +19,14 @@ use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\AuthenticateSession;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\Facades\Vite;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class AdminPanelProvider extends PanelProvider
 {
     public function panel(Panel $panel): Panel
     {
-        return $panel
+        $panel = $panel
             ->default()
             ->id('admin')
             ->path('admin')
@@ -35,7 +37,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->tenantRegistration(OrganizationRegistration::class)
             ->discoverResources(in: app_path('Filament/Admin/Resources'), for: 'App\\Filament\Admin\\Resources')
-            ->discoverPages(in: app_path('Filament/Admin/Pages'), for: 'App\\Filament\\Amdin\\Pages')
+            ->discoverPages(in: app_path('Filament/Admin/Pages'), for: 'App\\Filament\\Admin\\Pages')
             ->pages([
                 Dashboard::class,
             ])
@@ -61,5 +63,13 @@ class AdminPanelProvider extends PanelProvider
             ->maxContentWidth('full')
             ->sidebarCollapsibleOnDesktop(true)
             ->collapsedSidebarWidth('w/2');
+
+        if (! app()->runningInConsole()) {
+            $panel = $panel->assets([
+                Js::make('app', Vite::asset('resources/js/app.js'))->module(),
+            ]);
+        }
+
+        return $panel;
     }
 }

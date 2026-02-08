@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Admin\Resources\DeviceManagement\Devices\Tables;
 
 use App\Domain\DeviceManagement\Models\Device;
+use App\Filament\Actions\DeviceManagement\SimulatePublishingActions;
 use App\Filament\Admin\Resources\DeviceManagement\DeviceTypes\DeviceTypeResource;
 use App\Filament\Admin\Resources\Shared\Organizations\OrganizationResource;
 use Filament\Actions;
@@ -92,11 +93,13 @@ class DevicesTable
             ])
             ->recordActions([
                 Actions\ViewAction::make(),
+                SimulatePublishingActions::recordAction(),
                 Actions\EditAction::make(),
                 Actions\DeleteAction::make(),
             ])
             ->toolbarActions([
                 Actions\BulkActionGroup::make([
+                    SimulatePublishingActions::bulkAction(),
                     Actions\DeleteBulkAction::make(),
                 ]),
             ])

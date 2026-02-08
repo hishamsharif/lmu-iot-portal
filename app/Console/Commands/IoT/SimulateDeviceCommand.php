@@ -1,0 +1,89 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Console\Commands\IoT;
+
+use App\Domain\DeviceManagement\Models\Device;
+use App\Domain\DeviceManagement\Publishing\DevicePublishingSimulator;
+use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
+use Illuminate\Console\Command;
+
+class SimulateDeviceCommand extends Command
+{
+    /**
+     * The name and signature of the console command.
+     *
+     * @var string
+     */
+    protected $signature = 'iot:simulate {device_uuid : The UUID of the device to simulate}
+                            {--count=10 : Number of data points to generate}
+                            {--interval=1 : Seconds between each message}
+                            {--host=127.0.0.1 : NATS broker host}
+                            {--port=4223 : NATS broker port}';
+
+    /**
+     * The console command description.
+     *
+     * @var string
+     */
+    protected $description = 'Simulate IoT device telemetry publishing to NATS/MQTT';
+
+    /**
+     * Execute the console command.
+     */
+    public function handle(): int
+    {
+        $uuid = $this->argument('device_uuid');
+        $count = (int) $this->option('count');
+        $interval = (int) $this->option('interval');
+        $host = (string) $this->option('host');
+        $port = (int) $this->option('port');
+
+        $device = Device::where('uuid', $uuid)->first();
+
+        if (! $device) {
+            $this->error("Device with UUID {$uuid} not found.");
+
+            return 1;
+        }
+
+        $device->loadMissing('deviceType');
+
+        $this->info("Starting simulation for: {$device->name} ({$device->uuid})");
+
+        $publishTopics = $device->schemaVersion?->topics
+            ?->filter(fn (SchemaVersionTopic $topic): bool => $topic->isPublish());
+
+        if (! $publishTopics || $publishTopics->isEmpty()) {
+            $this->error('No publish topics found for this device schema.');
+
+            return 1;
+        }
+
+        /** @var DevicePublishingSimulator $simulator */
+        $simulator = app(DevicePublishingSimulator::class);
+
+        $simulator->simulate(
+            device: $device,
+            count: $count,
+            intervalSeconds: $interval,
+            host: $host,
+            port: $port,
+            onBeforePublish: function (int $iteration, string $mqttTopic, array $payload, SchemaVersionTopic $topic) use ($count): void {
+                $this->comment("Generating data point {$iteration}/{$count}...");
+                $this->line("  Topic: <info>{$mqttTopic}</info>");
+                $this->line('  Payload: '.json_encode($payload, JSON_PRETTY_PRINT));
+            },
+            onPublishFailed: function (int $iteration, string $mqttTopic, \Throwable $exception, SchemaVersionTopic $topic): void {
+                $this->error("  Failed to publish on iteration {$iteration} for {$mqttTopic}: {$exception->getMessage()}");
+            },
+        );
+
+        $this->info('Simulation complete.');
+
+        return 0;
+    }
+
+    // Simulation implementation lives in DevicePublishingSimulator so it can be reused by Filament actions.
+}

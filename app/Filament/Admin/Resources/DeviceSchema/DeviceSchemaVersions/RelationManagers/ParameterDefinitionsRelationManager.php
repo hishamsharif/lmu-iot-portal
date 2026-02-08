@@ -16,6 +16,7 @@ use Filament\Actions\EditAction;
 use Filament\Forms\Components\CodeEditor;
 use Filament\Forms\Components\CodeEditor\Enums\Language;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TagsInput;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -36,6 +37,11 @@ class ParameterDefinitionsRelationManager extends RelationManager
         $ownerRecord = $this->ownerRecord;
 
         return $ownerRecord;
+    }
+
+    public function isReadOnly(): bool
+    {
+        return false;
     }
 
     public function form(Schema $schema): Schema
@@ -123,9 +129,11 @@ class ParameterDefinitionsRelationManager extends RelationManager
                     })
                     ->dehydrateStateUsing(fn (?string $state): mixed => $state ? json_decode($state, true) : null),
 
-                TextInput::make('validation_error_code')
-                    ->maxLength(100)
+                TagsInput::make('validation_error_code')
+                    ->label('Validation error codes')
+                    ->separator(',')
                     ->placeholder('TEMP_RANGE')
+                    ->helperText('Add one or more codes. Stored as a comma-separated string (e.g. TEMP_RANGE, OUT_OF_RANGE).')
                     ->visible(fn (Get $get): bool => ! $this->isSubscribeTopic($get)),
 
                 CodeEditor::make('mutation_expression')
@@ -213,7 +221,8 @@ class ParameterDefinitionsRelationManager extends RelationManager
                     }),
             ])
             ->recordActions([
-                EditAction::make(),
+                EditAction::make()
+                    ->slideOver(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

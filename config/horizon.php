@@ -85,6 +85,7 @@ return [
 
     'waits' => [
         'redis:default' => 60,
+        'redis-simulations:simulations' => 60,
     ],
 
     /*
@@ -193,6 +194,20 @@ return [
             'timeout' => 60,
             'nice' => 0,
         ],
+
+        'supervisor-simulations' => [
+            'connection' => 'redis-simulations',
+            'queue' => ['simulations'],
+            'balance' => 'simple',
+            'maxProcesses' => 2,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 256,
+            'tries' => 1,
+            // Simulation jobs can run for a long time (sleep between iterations).
+            'timeout' => 45_000,
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [
@@ -202,11 +217,19 @@ return [
                 'balanceMaxShift' => 1,
                 'balanceCooldown' => 3,
             ],
+
+            'supervisor-simulations' => [
+                'maxProcesses' => 5,
+            ],
         ],
 
         'local' => [
             'supervisor-1' => [
                 'maxProcesses' => 3,
+            ],
+
+            'supervisor-simulations' => [
+                'maxProcesses' => 2,
             ],
         ],
     ],

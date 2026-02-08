@@ -1,0 +1,17 @@
+services:
+  nats:
+    image: nats:2.10-alpine
+    container_name: lmu-iot-portal-nats
+    restart: unless-stopped
+    command: ["-c", "/etc/nats/nats.conf"]
+    ports:
+      # Using non-default host ports to avoid clashing with any other local NATS instance.
+      - "4223:4222"   # NATS client port (optional unless you use nats CLI)
+      - "8223:8222"   # Monitoring / varz
+      - "1883:1883"   # MQTT
+    volumes:
+      - ./docker/nats/nats.conf:/etc/nats/nats.conf:ro
+      - nats-data:/data
+
+volumes:
+  nats-data:
