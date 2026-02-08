@@ -58,6 +58,7 @@ class DeviceResource extends Resource
             'create' => Pages\CreateDevice::route('/create'),
             'view' => Pages\ViewDevice::route('/{record}'),
             'edit' => Pages\EditDevice::route('/{record}/edit'),
+            'control-dashboard' => Pages\DeviceControlDashboard::route('/{record}/control-dashboard'),
         ];
     }
 }

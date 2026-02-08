@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Domain\DeviceManagement\Publishing\Nats\BasisNatsDeviceStateStore;
 use App\Domain\DeviceManagement\Publishing\Nats\BasisNatsPublisherFactory;
+use App\Domain\DeviceManagement\Publishing\Nats\NatsDeviceStateStore;
 use App\Domain\DeviceManagement\Publishing\Nats\NatsPublisherFactory;
 use App\Domain\Shared\Models\User;
 use Filament\Events\TenantSet;
@@ -28,6 +30,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(NatsPublisherFactory::class, BasisNatsPublisherFactory::class);
+        $this->app->bind(NatsDeviceStateStore::class, BasisNatsDeviceStateStore::class);
 
         if ($this->app->environment('local')) {
             $this->app->register(\Laravel\Telescope\TelescopeServiceProvider::class);

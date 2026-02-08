@@ -321,6 +321,7 @@ class DeviceSchemaSeeder extends Seeder
         ]);
 
         $this->seedSmartFan();
+        $this->seedDimmableLight();
     }
 
     /**
@@ -358,13 +359,13 @@ class DeviceSchemaSeeder extends Seeder
             'notes' => 'Smart fan with telemetry and command topics',
         ]);
 
-        $fanStatusTopic = SchemaVersionTopic::firstOrCreate([
+        $fanStateTopic = SchemaVersionTopic::firstOrCreate([
             'device_schema_version_id' => $fanVersion->id,
-            'key' => 'fan_status',
+            'key' => 'fan_state',
         ], [
-            'label' => 'Fan Status',
+            'label' => 'Fan State',
             'direction' => TopicDirection::Publish,
-            'suffix' => 'status',
+            'suffix' => 'state',
             'description' => 'Fan telemetry: speed, light state, and operating mode',
             'qos' => 1,
             'retain' => true,
@@ -372,7 +373,7 @@ class DeviceSchemaSeeder extends Seeder
         ]);
 
         ParameterDefinition::firstOrCreate([
-            'schema_version_topic_id' => $fanStatusTopic->id,
+            'schema_version_topic_id' => $fanStateTopic->id,
             'key' => 'fan_speed',
         ], [
             'label' => 'Fan Speed',
@@ -388,7 +389,7 @@ class DeviceSchemaSeeder extends Seeder
         ]);
 
         ParameterDefinition::firstOrCreate([
-            'schema_version_topic_id' => $fanStatusTopic->id,
+            'schema_version_topic_id' => $fanStateTopic->id,
             'key' => 'light_state',
         ], [
             'label' => 'Light State',
@@ -401,7 +402,7 @@ class DeviceSchemaSeeder extends Seeder
         ]);
 
         ParameterDefinition::firstOrCreate([
-            'schema_version_topic_id' => $fanStatusTopic->id,
+            'schema_version_topic_id' => $fanStateTopic->id,
             'key' => 'mode',
         ], [
             'label' => 'Operating Mode',
@@ -469,6 +470,101 @@ class DeviceSchemaSeeder extends Seeder
             'default_value' => 'auto',
             'validation_rules' => ['enum' => ['cooling', 'heating', 'auto']],
             'sequence' => 3,
+            'is_active' => true,
+        ]);
+    }
+
+    /**
+     * Seed a dimmable light device type with both status (publish) and control (subscribe) topics.
+     */
+    private function seedDimmableLight(): void
+    {
+        $dimmableLightType = DeviceType::firstOrCreate(
+            ['key' => 'dimmable_light'],
+            [
+                'organization_id' => null,
+                'name' => 'Dimmable Light',
+                'default_protocol' => ProtocolType::Mqtt,
+                'protocol_config' => (new MqttProtocolConfig(
+                    brokerHost: 'mqtt.iot-platform.local',
+                    brokerPort: 1883,
+                    username: 'dimmable_light',
+                    password: 'light_password',
+                    useTls: false,
+                    baseTopic: 'devices/dimmable-light',
+                ))->toArray(),
+            ]
+        );
+
+        $lightSchema = DeviceSchema::firstOrCreate([
+            'device_type_id' => $dimmableLightType->id,
+            'name' => 'Dimmable Light Control Contract',
+        ]);
+
+        $lightVersion = DeviceSchemaVersion::firstOrCreate([
+            'device_schema_id' => $lightSchema->id,
+            'version' => 1,
+        ], [
+            'status' => 'active',
+            'notes' => 'Dimmable light with brightness levels 0-10',
+        ]);
+
+        // Publish topic: status reporting
+        $lightStateTopic = SchemaVersionTopic::firstOrCreate([
+            'device_schema_version_id' => $lightVersion->id,
+            'key' => 'brightness_state',
+        ], [
+            'label' => 'Brightness State',
+            'direction' => TopicDirection::Publish,
+            'suffix' => 'state',
+            'description' => 'Device brightness state reporting',
+            'qos' => 1,
+            'retain' => true,
+            'sequence' => 0,
+        ]);
+
+        ParameterDefinition::firstOrCreate([
+            'schema_version_topic_id' => $lightStateTopic->id,
+            'key' => 'brightness_level',
+        ], [
+            'label' => 'Brightness Level',
+            'json_path' => 'brightness_level',
+            'type' => ParameterDataType::Integer,
+            'required' => true,
+            'is_critical' => false,
+            'validation_rules' => ['min' => 0, 'max' => 10],
+            'validation_error_code' => 'BRIGHTNESS_RANGE',
+            'sequence' => 1,
+            'is_active' => true,
+        ]);
+
+        // Subscribe topic: control commands
+        $lightControlTopic = SchemaVersionTopic::firstOrCreate([
+            'device_schema_version_id' => $lightVersion->id,
+            'key' => 'brightness_control',
+        ], [
+            'label' => 'Brightness Control',
+            'direction' => TopicDirection::Subscribe,
+            'suffix' => 'control',
+            'description' => 'Command topic for brightness level (0-10)',
+            'qos' => 1,
+            'retain' => false,
+            'sequence' => 1,
+        ]);
+
+        ParameterDefinition::firstOrCreate([
+            'schema_version_topic_id' => $lightControlTopic->id,
+            'key' => 'brightness_level',
+        ], [
+            'label' => 'Brightness Level',
+            'json_path' => 'brightness_level',
+            'type' => ParameterDataType::Integer,
+            'required' => true,
+            'is_critical' => false,
+            'default_value' => 0,
+            'validation_rules' => ['min' => 0, 'max' => 10],
+            'validation_error_code' => 'BRIGHTNESS_RANGE',
+            'sequence' => 1,
             'is_active' => true,
         ]);
     }

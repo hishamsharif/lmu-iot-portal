@@ -89,7 +89,8 @@ test('resolved topic builds correct mqtt path', function (): void {
 
     $resolved = $topic->resolvedTopic($device);
 
-    expect($resolved)->toBe("sensors/{$device->uuid}/telemetry");
+    $identifier = $device->external_id ?: $device->uuid;
+    expect($resolved)->toBe("sensors/{$identifier}/telemetry");
 });
 
 test('unique key constraint per schema version', function (): void {

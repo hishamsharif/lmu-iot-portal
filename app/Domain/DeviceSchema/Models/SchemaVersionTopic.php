@@ -62,15 +62,17 @@ class SchemaVersionTopic extends Model
     /**
      * Resolve the full MQTT topic for a given device.
      *
-     * Full topic = {baseTopic}/{device_uuid}/{suffix}
+     * Full topic = {baseTopic}/{deviceIdentifier}/{suffix}
+     * Uses external_id when available, falling back to uuid.
      */
     public function resolvedTopic(Device $device): string
     {
         $device->loadMissing('deviceType');
 
         $baseTopic = $device->deviceType?->protocol_config?->getBaseTopic() ?? '';
+        $identifier = $device->external_id ?: $device->uuid;
 
-        return trim($baseTopic, '/').'/'.$device->uuid.'/'.$this->suffix;
+        return trim($baseTopic, '/').'/'.$identifier.'/'.$this->suffix;
     }
 
     public function isPublish(): bool
