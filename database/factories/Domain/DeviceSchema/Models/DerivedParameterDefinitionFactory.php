@@ -39,7 +39,6 @@ class DerivedParameterDefinitionFactory extends Factory
                 ],
             ],
             'dependencies' => ['V1', 'V2'],
-            'json_path' => $this->faker->optional()->randomElement(['computed.avg_voltage', '$.computed.avg_voltage']),
         ];
     }
 }

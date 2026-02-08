@@ -118,11 +118,6 @@ class DerivedParameterDefinitionsRelationManager extends RelationManager
                         return is_string($state) ? $state : null;
                     })
                     ->dehydrateStateUsing(fn (?string $state): mixed => $state ? json_decode($state, true) : null),
-
-                TextInput::make('json_path')
-                    ->label('JSON Path')
-                    ->maxLength(255)
-                    ->placeholder('computed.avg_voltage'),
             ])
             ->columns(2);
     }

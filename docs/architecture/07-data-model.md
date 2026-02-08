@@ -545,8 +545,6 @@ erDiagram
 - JsonLogic expressions for computation
 - Dependencies array lists required parameters
 
-**Note**: The `json_path` attribute was identified as potentially redundant since derived parameters are computed, not extracted.
-
 ---
 
 ### Devices
