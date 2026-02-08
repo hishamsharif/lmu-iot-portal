@@ -152,7 +152,7 @@ it('publishes device state and fires DeviceStateReceived event', function (): vo
             && $event->topic === 'devices/dimmable-light/dimmable-light-01/status'
             && $event->payload === ['brightness_level' => 7];
     });
-});
+})->skip((bool) env('PARATEST'), 'Interactive prompt tests are not compatible with parallel execution.');
 
 it('uses external_id in topic resolution', function (): void {
     Event::fake([DeviceStateReceived::class]);
@@ -172,4 +172,4 @@ it('uses external_id in topic resolution', function (): void {
         return str_contains($event->topic, 'dimmable-light-01')
             && $event->deviceExternalId === 'dimmable-light-01';
     });
-});
+})->skip((bool) env('PARATEST'), 'Interactive prompt tests are not compatible with parallel execution.');
