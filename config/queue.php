@@ -72,6 +72,17 @@ return [
             'after_commit' => false,
         ],
 
+        'redis-simulations' => [
+            'driver' => 'redis',
+            'connection' => env('REDIS_SIMULATIONS_QUEUE_CONNECTION', 'default'),
+            'queue' => env('REDIS_SIMULATIONS_QUEUE', 'simulations'),
+            // Simulation jobs can be long-running (they sleep between iterations),
+            // so we increase retry_after to avoid premature retries / duplicates.
+            'retry_after' => (int) env('REDIS_SIMULATIONS_QUEUE_RETRY_AFTER', 45_000),
+            'block_for' => null,
+            'after_commit' => false,
+        ],
+
     ],
 
     /*

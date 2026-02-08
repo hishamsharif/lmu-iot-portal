@@ -302,3 +302,65 @@ test('buildCommandPayloadTemplate excludes inactive parameters', function (): vo
     expect($template)->toBe(['active_param' => 10])
         ->and($template)->not->toHaveKey('inactive_param');
 });
+
+test('buildPublishPayloadTemplate creates nested payload using JSONPath-like json_path', function (): void {
+    $topic = SchemaVersionTopic::factory()->publish()->create();
+
+    ParameterDefinition::factory()->create([
+        'schema_version_topic_id' => $topic->id,
+        'key' => 'temp_c',
+        'json_path' => '$.status.temp',
+        'type' => ParameterDataType::Decimal,
+        'default_value' => null,
+        'is_active' => true,
+        'sequence' => 1,
+    ]);
+
+    ParameterDefinition::factory()->create([
+        'schema_version_topic_id' => $topic->id,
+        'key' => 'humidity',
+        'json_path' => '$.status.humidity',
+        'type' => ParameterDataType::Decimal,
+        'default_value' => null,
+        'is_active' => true,
+        'sequence' => 2,
+    ]);
+
+    $template = $topic->buildPublishPayloadTemplate();
+
+    expect($template)->toBe([
+        'status' => [
+            'temp' => 0.0,
+            'humidity' => 0.0,
+        ],
+    ]);
+});
+
+test('buildPublishPayloadTemplate excludes inactive parameters', function (): void {
+    $topic = SchemaVersionTopic::factory()->publish()->create();
+
+    ParameterDefinition::factory()->create([
+        'schema_version_topic_id' => $topic->id,
+        'key' => 'active_param',
+        'json_path' => '$.active_param',
+        'type' => ParameterDataType::Integer,
+        'default_value' => 10,
+        'is_active' => true,
+        'sequence' => 1,
+    ]);
+
+    ParameterDefinition::factory()->create([
+        'schema_version_topic_id' => $topic->id,
+        'key' => 'inactive_param',
+        'json_path' => '$.inactive_param',
+        'type' => ParameterDataType::Integer,
+        'default_value' => 20,
+        'is_active' => false,
+        'sequence' => 2,
+    ]);
+
+    $template = $topic->buildPublishPayloadTemplate();
+
+    expect($template)->toBe(['active_param' => 10])
+        ->and($template)->not->toHaveKey('inactive_param');
+});

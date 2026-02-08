@@ -11,10 +11,17 @@ use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
 use App\Domain\Telemetry\Enums\ValidationStatus;
 use App\Domain\Telemetry\Models\DeviceTelemetryLog;
 use App\Domain\Telemetry\Services\TelemetryLogRecorder;
+use App\Events\TelemetryIncoming;
+use App\Events\TelemetryReceived;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Event;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function (): void {
+    Event::fake([TelemetryReceived::class, TelemetryIncoming::class]);
+});
 
 it('persists raw and transformed telemetry payloads', function (): void {
     $schemaVersion = DeviceSchemaVersion::factory()->create();

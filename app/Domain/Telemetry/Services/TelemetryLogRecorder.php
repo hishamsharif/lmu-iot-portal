@@ -12,6 +12,7 @@ use App\Domain\DeviceSchema\Models\ParameterDefinition;
 use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
 use App\Domain\Telemetry\Enums\ValidationStatus;
 use App\Domain\Telemetry\Models\DeviceTelemetryLog;
+use App\Events\TelemetryReceived;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use RuntimeException;
@@ -57,7 +58,7 @@ class TelemetryLogRecorder
         $resolvedReceivedAt = $receivedAt ?? Carbon::now();
         $resolvedRecordedAt = $recordedAt ?? $resolvedReceivedAt;
 
-        return DeviceTelemetryLog::create([
+        $log = DeviceTelemetryLog::create([
             'device_id' => $device->id,
             'device_schema_version_id' => $schemaVersion->id,
             'schema_version_topic_id' => $topic?->id,
@@ -67,6 +68,12 @@ class TelemetryLogRecorder
             'recorded_at' => $resolvedRecordedAt,
             'received_at' => $resolvedReceivedAt,
         ]);
+
+        $log->loadMissing('device');
+
+        event(new TelemetryReceived($log));
+
+        return $log;
     }
 
     /**

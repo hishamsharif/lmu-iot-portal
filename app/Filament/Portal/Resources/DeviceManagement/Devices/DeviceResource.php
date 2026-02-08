@@ -7,8 +7,10 @@ namespace App\Filament\Portal\Resources\DeviceManagement\Devices;
 use App\Domain\DeviceManagement\Models\Device;
 use App\Domain\DeviceSchema\Models\DeviceSchemaVersion;
 use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
+use App\Filament\Actions\DeviceManagement\SimulatePublishingActions;
 use App\Filament\Admin\Resources\DeviceManagement\Devices\RelationManagers\TelemetryLogsRelationManager;
 use BackedEnum;
+use Filament\Actions\BulkActionGroup;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\KeyValue;
@@ -201,6 +203,41 @@ class DeviceResource extends Resource
                             })
                             ->visible(fn (Device $record): bool => $record->getAttribute('device_schema_version_id') !== null),
                     ]),
+
+                Section::make('MQTT Publish Payload Samples')
+                    ->description('Example topics + JSON payload structure the device should publish (Device → Platform). Copy and paste into your MQTT client.')
+                    ->schema([
+                        TextEntry::make('mqtt_publish_payload_samples')
+                            ->label('Publish Samples')
+                            ->copyable()
+                            ->placeholder('—')
+                            ->extraAttributes(['class' => 'font-mono whitespace-pre-wrap'])
+                            ->state(function (Device $record): string {
+                                $record->loadMissing('schemaVersion.topics.parameters', 'deviceType');
+
+                                $topics = $record->schemaVersion?->topics
+                                    ?->filter(fn (SchemaVersionTopic $topic): bool => $topic->isPublish())
+                                    ->sortBy('sequence');
+
+                                if (! $topics || $topics->isEmpty()) {
+                                    return '';
+                                }
+
+                                $samples = $topics->map(function (SchemaVersionTopic $topic) use ($record): string {
+                                    $resolvedTopic = $topic->resolvedTopic($record);
+                                    $template = $topic->buildPublishPayloadTemplate();
+                                    $json = json_encode($template, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}';
+
+                                    $qos = $topic->qos ?? 0;
+                                    $retain = $topic->retain ? 'true' : 'false';
+
+                                    return "Topic: {$resolvedTopic}\nQoS: {$qos}\nRetain: {$retain}\nPayload:\n{$json}";
+                                })->all();
+
+                                return implode("\n\n", $samples);
+                            })
+                            ->visible(fn (Device $record): bool => $record->getAttribute('device_schema_version_id') !== null),
+                    ]),
             ]);
     }
 
@@ -245,7 +282,13 @@ class DeviceResource extends Resource
             ])
             ->recordActions([
                 ViewAction::make(),
+                SimulatePublishingActions::recordAction(),
                 EditAction::make(),
+            ])
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    SimulatePublishingActions::bulkAction(),
+                ]),
             ])
             ->defaultSort('created_at', 'desc');
     }

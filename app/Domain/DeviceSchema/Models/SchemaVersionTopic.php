@@ -106,4 +106,29 @@ class SchemaVersionTopic extends Model
 
         return $payload;
     }
+
+    /**
+     * Build an example JSON payload template for publish topics (Device → Platform).
+     *
+     * Publish parameters generally use JSONPath-like `json_path` values (e.g. `$.status.temp`).
+     * We normalize those paths and place type-appropriate defaults to produce a nested JSON
+     * structure that matches what the platform expects to receive.
+     *
+     * @return array<string, mixed>
+     */
+    public function buildPublishPayloadTemplate(): array
+    {
+        $this->loadMissing('parameters');
+
+        $payload = [];
+
+        $this->parameters
+            ->where('is_active', true)
+            ->sortBy('sequence')
+            ->each(function (ParameterDefinition $parameter) use (&$payload): void {
+                $payload = $parameter->placeValue($payload, $parameter->resolvedDefaultValue());
+            });
+
+        return $payload;
+    }
 }
