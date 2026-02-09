@@ -27,6 +27,7 @@ class DeviceCommandLog extends Model
         return [
             'command_payload' => 'array',
             'response_payload' => 'array',
+            'correlation_id' => 'string',
             'status' => CommandStatus::class,
             'sent_at' => 'datetime',
             'acknowledged_at' => 'datetime',
@@ -48,6 +49,14 @@ class DeviceCommandLog extends Model
     public function topic(): BelongsTo
     {
         return $this->belongsTo(SchemaVersionTopic::class, 'schema_version_topic_id');
+    }
+
+    /**
+     * @return BelongsTo<SchemaVersionTopic, $this>
+     */
+    public function responseTopic(): BelongsTo
+    {
+        return $this->belongsTo(SchemaVersionTopic::class, 'response_schema_version_topic_id');
     }
 
     /**

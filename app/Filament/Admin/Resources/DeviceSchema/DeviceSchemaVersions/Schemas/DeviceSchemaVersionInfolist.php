@@ -6,6 +6,7 @@ namespace App\Filament\Admin\Resources\DeviceSchema\DeviceSchemaVersions\Schemas
 
 use App\Domain\DeviceSchema\Models\DeviceSchemaVersion;
 use App\Filament\Admin\Resources\DeviceSchema\DeviceSchemas\DeviceSchemaResource;
+use Filament\Forms\Components\CodeEditor;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -45,6 +46,19 @@ class DeviceSchemaVersionInfolist
                             ->icon(Heroicon::OutlinedClock),
                     ])
                     ->columns(2),
+
+                Section::make('Firmware')
+                    ->schema([
+                        TextEntry::make('firmware_filename')
+                            ->label('File Name')
+                            ->placeholder('—'),
+
+                        CodeEditor::make('firmware_template')
+                            ->label('Template')
+                            ->extraAttributes(['class' => 'font-mono whitespace-pre-wrap'])
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1),
             ]);
     }
 }

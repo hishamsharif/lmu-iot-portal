@@ -1,0 +1,78 @@
+<?php
+
+declare(strict_types=1);
+
+use App\Domain\DeviceControl\Services\CommandPayloadResolver;
+use App\Domain\DeviceSchema\Enums\ParameterDataType;
+use App\Domain\DeviceSchema\Models\ParameterDefinition;
+use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+uses(TestCase::class, RefreshDatabase::class);
+
+it('resolves command payload from control values and json paths', function (): void {
+    $topic = SchemaVersionTopic::factory()->subscribe()->create();
+
+    ParameterDefinition::factory()->create([
+        'schema_version_topic_id' => $topic->id,
+        'key' => 'fan_speed',
+        'json_path' => 'control.fan_speed',
+        'type' => ParameterDataType::Integer,
+        'default_value' => 0,
+        'validation_rules' => ['min' => 0, 'max' => 100],
+        'sequence' => 1,
+        'is_active' => true,
+    ]);
+
+    ParameterDefinition::factory()->create([
+        'schema_version_topic_id' => $topic->id,
+        'key' => 'enabled',
+        'json_path' => 'control.enabled',
+        'type' => ParameterDataType::Boolean,
+        'default_value' => false,
+        'sequence' => 2,
+        'is_active' => true,
+    ]);
+
+    /** @var CommandPayloadResolver $resolver */
+    $resolver = app(CommandPayloadResolver::class);
+
+    $resolved = $resolver->resolveFromControls($topic, [
+        'fan_speed' => '80',
+        'enabled' => 'true',
+    ]);
+
+    expect($resolved['errors'])->toBe([])
+        ->and($resolved['payload'])->toBe([
+            'control' => [
+                'fan_speed' => 80,
+                'enabled' => true,
+            ],
+        ]);
+});
+
+it('returns validation errors for invalid payload values', function (): void {
+    $topic = SchemaVersionTopic::factory()->subscribe()->create();
+
+    ParameterDefinition::factory()->create([
+        'schema_version_topic_id' => $topic->id,
+        'key' => 'brightness_level',
+        'json_path' => 'brightness_level',
+        'type' => ParameterDataType::Integer,
+        'default_value' => 0,
+        'validation_rules' => ['min' => 0, 'max' => 10],
+        'validation_error_code' => 'BRIGHTNESS_RANGE',
+        'sequence' => 1,
+        'is_active' => true,
+    ]);
+
+    /** @var CommandPayloadResolver $resolver */
+    $resolver = app(CommandPayloadResolver::class);
+
+    $errors = $resolver->validatePayload($topic, [
+        'brightness_level' => 50,
+    ]);
+
+    expect($errors)->toHaveKey('brightness_level', 'BRIGHTNESS_RANGE');
+});

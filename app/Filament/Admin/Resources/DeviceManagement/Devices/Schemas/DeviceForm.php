@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace App\Filament\Admin\Resources\DeviceManagement\Devices\Schemas;
 
+use App\Domain\DeviceManagement\Models\DeviceType;
 use App\Domain\DeviceSchema\Models\DeviceSchemaVersion;
 use Filament\Forms\Components\KeyValue;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 
 class DeviceForm
@@ -45,29 +48,76 @@ class DeviceForm
                             ->relationship('organization', 'name')
                             ->required()
                             ->searchable()
-                            ->preload(),
+                            ->preload()
+                            ->default(function (): ?int {
+                                $organizationId = request()->query('organization_id');
+
+                                if (is_numeric($organizationId)) {
+                                    return (int) $organizationId;
+                                }
+
+                                $deviceTypeId = request()->query('device_type_id');
+
+                                if (! is_numeric($deviceTypeId)) {
+                                    return null;
+                                }
+
+                                $organization = DeviceType::query()
+                                    ->whereKey((int) $deviceTypeId)
+                                    ->value('organization_id');
+
+                                return is_numeric($organization) ? (int) $organization : null;
+                            })
+                            ->live()
+                            ->afterStateUpdated(function (Set $set): void {
+                                $set('device_type_id', null);
+                                $set('device_schema_version_id', null);
+                            }),
 
                         Select::make('device_type_id')
                             ->label('Device Type')
-                            ->relationship('deviceType', 'name')
+                            ->options(fn (Get $get): array => self::deviceTypeOptions($get))
                             ->required()
                             ->searchable()
-                            ->preload()
-                            ->live(),
+                            ->default(function (): ?int {
+                                $deviceTypeId = request()->query('device_type_id');
+
+                                return is_numeric($deviceTypeId) ? (int) $deviceTypeId : null;
+                            })
+                            ->live()
+                            ->helperText('Includes global catalog types plus organization-specific types for the selected organization.')
+                            ->afterStateUpdated(function (Set $set, Get $get): void {
+                                $defaultSchemaVersionId = self::defaultActiveSchemaVersionId($get('device_type_id'));
+                                $set('device_schema_version_id', $defaultSchemaVersionId);
+                            }),
 
                         Select::make('device_schema_version_id')
                             ->label('Schema Version')
-                            ->options(fn (Get $get) => DeviceSchemaVersion::query()
-                                ->whereHas('schema', fn ($query) => $query->where('device_type_id', $get('device_type_id')))
-                                ->where('status', 'active')
-                                ->pluck('version', 'id')
-                                ->map(fn (mixed $version): string => 'Version '.(is_scalar($version) ? (string) $version : ''))
-                                ->toArray())
+                            ->options(fn (Get $get): array => self::schemaVersionOptions($get))
                             ->required()
                             ->searchable()
-                            ->preload()
+                            ->default(fn (): ?int => self::defaultActiveSchemaVersionId(request()->query('device_type_id')))
                             ->disabled(fn (Get $get) => ! $get('device_type_id'))
                             ->helperText('Only active schema versions for the selected device type are shown'),
+
+                        Placeholder::make('onboarding_hint')
+                            ->label('Onboarding Hint')
+                            ->content(function (Get $get): string {
+                                $deviceTypeId = $get('device_type_id');
+
+                                if (! is_numeric($deviceTypeId)) {
+                                    return 'Select an organization and device type to load active schema versions.';
+                                }
+
+                                $schemaOptions = self::schemaVersionOptions($get);
+
+                                if ($schemaOptions === []) {
+                                    return 'This device type has no active schema version yet. Create/activate a schema version before onboarding devices.';
+                                }
+
+                                return 'Schema version is preselected to the latest active version. You can still choose another active version.';
+                            })
+                            ->columnSpanFull(),
                     ])
                     ->columns(2),
 
@@ -99,5 +149,85 @@ class DeviceForm
                             ->columnSpanFull(),
                     ]),
             ]);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function deviceTypeOptions(Get $get): array
+    {
+        $organizationId = $get('organization_id');
+
+        $query = DeviceType::query()
+            ->orderBy('name');
+
+        if (is_numeric($organizationId)) {
+            $query->where(function ($scope) use ($organizationId): void {
+                $scope
+                    ->whereNull('organization_id')
+                    ->orWhere('organization_id', (int) $organizationId);
+            });
+        } else {
+            $query->whereNull('organization_id');
+        }
+
+        return $query
+            ->get(['id', 'name', 'organization_id'])
+            ->mapWithKeys(function (DeviceType $deviceType): array {
+                $scopeSuffix = $deviceType->organization_id === null ? ' (Global)' : '';
+
+                return [
+                    (int) $deviceType->id => "{$deviceType->name}{$scopeSuffix}",
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function schemaVersionOptions(Get $get): array
+    {
+        $deviceTypeId = $get('device_type_id');
+
+        if (! is_numeric($deviceTypeId)) {
+            return [];
+        }
+
+        return DeviceSchemaVersion::query()
+            ->with('schema')
+            ->whereHas('schema', fn ($query) => $query->where('device_type_id', (int) $deviceTypeId))
+            ->where('status', 'active')
+            ->orderByDesc('version')
+            ->get(['id', 'device_schema_id', 'version'])
+            ->mapWithKeys(function (DeviceSchemaVersion $schemaVersion): array {
+                $schemaName = data_get($schemaVersion, 'schema.name', 'Schema');
+                $schemaName = is_string($schemaName) && trim($schemaName) !== '' ? $schemaName : 'Schema';
+                $version = (string) $schemaVersion->version;
+
+                return [
+                    (int) $schemaVersion->id => "{$schemaName} · v{$version}",
+                ];
+            })
+            ->all();
+    }
+
+    private static function defaultActiveSchemaVersionId(mixed $deviceTypeId): ?int
+    {
+        if (! is_numeric($deviceTypeId)) {
+            return null;
+        }
+
+        $schemaVersion = DeviceSchemaVersion::query()
+            ->whereHas('schema', fn ($query) => $query->where('device_type_id', (int) $deviceTypeId))
+            ->where('status', 'active')
+            ->orderByDesc('version')
+            ->first(['id']);
+
+        if ($schemaVersion === null) {
+            return null;
+        }
+
+        return (int) $schemaVersion->id;
     }
 }

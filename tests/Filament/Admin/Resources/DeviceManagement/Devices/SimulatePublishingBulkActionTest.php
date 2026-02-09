@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Domain\DeviceManagement\Jobs\SimulateDevicePublishingJob;
 use App\Domain\DeviceManagement\Models\Device;
+use App\Domain\DeviceManagement\Models\DeviceType;
+use App\Domain\DeviceSchema\Models\DeviceSchema;
 use App\Domain\DeviceSchema\Models\DeviceSchemaVersion;
 use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
 use App\Domain\Shared\Models\User;
@@ -41,4 +43,85 @@ it('queues simulation jobs for selected devices', function (): void {
         ]);
 
     Queue::assertPushed(SimulateDevicePublishingJob::class, 2);
+});
+
+it('can replicate a device from the list table', function (): void {
+    $deviceType = DeviceType::factory()->mqtt()->create();
+    $schema = DeviceSchema::factory()->forDeviceType($deviceType)->create();
+    $schemaVersion = DeviceSchemaVersion::factory()->active()->create([
+        'device_schema_id' => $schema->id,
+    ]);
+
+    $device = Device::factory()->create([
+        'device_type_id' => $deviceType->id,
+        'device_schema_version_id' => $schemaVersion->id,
+        'name' => 'Pump Controller',
+        'external_id' => 'pump-01',
+        'is_active' => true,
+        'connection_state' => 'online',
+    ]);
+
+    livewire(ListDevices::class)
+        ->callTableAction('replicate', $device, data: [
+            'name' => 'Pump Controller Copy',
+            'external_id' => null,
+            'organization_id' => $device->organization_id,
+            'device_type_id' => $device->device_type_id,
+            'device_schema_version_id' => $device->device_schema_version_id,
+            'is_active' => false,
+            'is_simulated' => $device->is_simulated,
+        ])
+        ->assertHasNoFormErrors();
+
+    $replica = Device::query()
+        ->where('id', '!=', $device->id)
+        ->latest('id')
+        ->first();
+
+    expect($replica)->not->toBeNull()
+        ->and($replica?->name)->toBe('Pump Controller Copy')
+        ->and($replica?->external_id)->toBeNull()
+        ->and($replica?->is_active)->toBeFalse()
+        ->and($replica?->connection_state)->toBeNull();
+});
+
+it('allows overriding fields when replicating a device from the modal form', function (): void {
+    $deviceType = DeviceType::factory()->mqtt()->create();
+    $schema = DeviceSchema::factory()->forDeviceType($deviceType)->create();
+    $schemaVersion = DeviceSchemaVersion::factory()->active()->create([
+        'device_schema_id' => $schema->id,
+    ]);
+
+    $device = Device::factory()->create([
+        'device_type_id' => $deviceType->id,
+        'device_schema_version_id' => $schemaVersion->id,
+        'name' => 'Fan Controller',
+        'external_id' => 'fan-01',
+        'is_active' => true,
+        'is_simulated' => false,
+    ]);
+
+    livewire(ListDevices::class)
+        ->callTableAction('replicate', $device, data: [
+            'name' => 'Fan Controller Clone A',
+            'external_id' => 'fan-01-clone-a',
+            'organization_id' => $device->organization_id,
+            'device_type_id' => $device->device_type_id,
+            'device_schema_version_id' => $device->device_schema_version_id,
+            'is_active' => true,
+            'is_simulated' => true,
+        ])
+        ->assertHasNoFormErrors();
+
+    $replica = Device::query()
+        ->where('id', '!=', $device->id)
+        ->latest('id')
+        ->first();
+
+    expect($replica)->not->toBeNull()
+        ->and($replica?->name)->toBe('Fan Controller Clone A')
+        ->and($replica?->external_id)->toBe('fan-01-clone-a')
+        ->and($replica?->is_active)->toBeTrue()
+        ->and($replica?->is_simulated)->toBeTrue()
+        ->and($replica?->device_schema_version_id)->toBe($device->device_schema_version_id);
 });

@@ -26,7 +26,9 @@ class DeviceSchemaVersionFactory extends Factory
             'device_schema_id' => DeviceSchema::factory(),
             'version' => 1,
             'status' => 'draft',
-            'notes' => $this->faker->optional()->sentence,
+            'notes' => null,
+            'firmware_filename' => null,
+            'firmware_template' => null,
         ];
     }
 

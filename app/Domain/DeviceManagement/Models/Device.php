@@ -6,6 +6,7 @@ namespace App\Domain\DeviceManagement\Models;
 
 use App\Domain\DeviceControl\Models\DeviceCommandLog;
 use App\Domain\DeviceControl\Models\DeviceDesiredState;
+use App\Domain\DeviceControl\Models\DeviceDesiredTopicState;
 use App\Domain\DeviceSchema\Models\DeviceSchemaVersion;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Telemetry\Models\DeviceTelemetryLog;
@@ -48,6 +49,7 @@ class Device extends Model
     protected function casts(): array
     {
         return [
+            'is_active' => 'bool',
             'is_simulated' => 'bool',
             'last_seen_at' => 'datetime',
             'metadata' => 'array',
@@ -100,5 +102,13 @@ class Device extends Model
     public function commandLogs(): HasMany
     {
         return $this->hasMany(DeviceCommandLog::class);
+    }
+
+    /**
+     * @return HasMany<DeviceDesiredTopicState, $this>
+     */
+    public function desiredTopicStates(): HasMany
+    {
+        return $this->hasMany(DeviceDesiredTopicState::class);
     }
 }

@@ -6,11 +6,13 @@ namespace App\Domain\DeviceControl\Services;
 
 use App\Domain\DeviceControl\Enums\CommandStatus;
 use App\Domain\DeviceControl\Models\DeviceCommandLog;
+use App\Domain\DeviceControl\Models\DeviceDesiredTopicState;
 use App\Domain\DeviceManagement\Models\Device;
 use App\Domain\DeviceManagement\Publishing\Nats\NatsPublisherFactory;
 use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
 use App\Events\CommandDispatched;
 use App\Events\CommandSent;
+use Illuminate\Support\Str;
 
 final readonly class DeviceCommandDispatcher
 {
@@ -35,14 +37,29 @@ final readonly class DeviceCommandDispatcher
         int $port = 4223,
     ): DeviceCommandLog {
         $device->loadMissing('deviceType');
+        $correlationId = (string) Str::uuid();
+        $payloadForPublishing = $this->injectCorrelationMeta($payload, $correlationId);
 
         $commandLog = DeviceCommandLog::create([
             'device_id' => $device->id,
             'schema_version_topic_id' => $topic->id,
             'user_id' => $userId,
             'command_payload' => $payload,
+            'correlation_id' => $correlationId,
             'status' => CommandStatus::Pending,
         ]);
+
+        DeviceDesiredTopicState::updateOrCreate(
+            [
+                'device_id' => $device->id,
+                'schema_version_topic_id' => $topic->id,
+            ],
+            [
+                'desired_payload' => $payload,
+                'correlation_id' => $correlationId,
+                'reconciled_at' => null,
+            ],
+        );
 
         $commandLog->load('device', 'topic');
 
@@ -51,7 +68,7 @@ final readonly class DeviceCommandDispatcher
         $mqttTopic = $this->resolveTopicWithExternalId($device, $topic);
         $natsSubject = str_replace('/', '.', $mqttTopic);
 
-        $encodedPayload = json_encode($payload);
+        $encodedPayload = json_encode($payloadForPublishing);
         $encodedPayload = is_string($encodedPayload) ? $encodedPayload : '{}';
 
         try {
@@ -84,5 +101,27 @@ final readonly class DeviceCommandDispatcher
         $identifier = $device->external_id ?: $device->uuid;
 
         return trim($baseTopic, '/').'/'.$identifier.'/'.$topic->suffix;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function injectCorrelationMeta(array $payload, string $correlationId): array
+    {
+        if (! (bool) config('iot.device_control.inject_meta_command_id', true)) {
+            return $payload;
+        }
+
+        $meta = $payload['_meta'] ?? [];
+
+        if (! is_array($meta)) {
+            $meta = [];
+        }
+
+        $meta['command_id'] = $correlationId;
+        $payload['_meta'] = $meta;
+
+        return $payload;
     }
 }

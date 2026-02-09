@@ -6,14 +6,19 @@ namespace App\Filament\Admin\Resources\DeviceManagement\DeviceTypes\Schemas;
 
 use App\Domain\DeviceManagement\Enums\HttpAuthType;
 use App\Domain\DeviceManagement\Enums\ProtocolType;
+use App\Domain\DeviceManagement\Models\DeviceType;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\KeyValue;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class DeviceTypeForm
 {
@@ -24,17 +29,73 @@ class DeviceTypeForm
             ->components([
                 Section::make('Basic Information')
                     ->schema([
-                        TextInput::make('key')
-                            ->required()
-                            ->unique(ignoreRecord: true)
-                            ->maxLength(255)
-                            ->regex('/^[a-z0-9_]+$/')
-                            ->helperText('Unique identifier (lowercase letters, numbers, and underscores only)'),
+                        Select::make('organization_id')
+                            ->label('Catalog Scope')
+                            ->relationship('organization', 'name')
+                            ->searchable()
+                            ->preload()
+                            ->placeholder('Global catalog')
+                            ->helperText('Leave empty to make this type available to all organizations.')
+                            ->columnSpanFull(),
 
                         TextInput::make('name')
                             ->required()
                             ->maxLength(255)
-                            ->helperText('Human-readable name for this device type'),
+                            ->helperText('Human-readable name for this device type')
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(function (?string $state, Get $get, Set $set): void {
+                                $currentKey = $get('key');
+
+                                if (is_string($currentKey) && trim($currentKey) !== '') {
+                                    return;
+                                }
+
+                                if (! is_string($state) || trim($state) === '') {
+                                    return;
+                                }
+
+                                $slug = Str::of($state)
+                                    ->lower()
+                                    ->replaceMatches('/[^a-z0-9]+/', '_')
+                                    ->trim('_')
+                                    ->toString();
+
+                                if ($slug !== '') {
+                                    $set('key', $slug);
+                                }
+                            }),
+
+                        TextInput::make('key')
+                            ->required()
+                            ->maxLength(255)
+                            ->regex('/^[a-z0-9_]+$/')
+                            ->rule(function (Get $get, ?Model $record): \Closure {
+                                return function (string $attribute, mixed $value, \Closure $fail) use ($get, $record): void {
+                                    if (! is_string($value) || trim($value) === '') {
+                                        return;
+                                    }
+
+                                    $query = DeviceType::query()
+                                        ->where('key', $value);
+
+                                    if ($record !== null) {
+                                        $query->whereKeyNot($record->getKey());
+                                    }
+
+                                    $organizationId = $get('organization_id');
+
+                                    if (is_numeric($organizationId)) {
+                                        $query->where('organization_id', (int) $organizationId);
+                                    } else {
+                                        $query->whereNull('organization_id');
+                                    }
+
+                                    if ($query->exists()) {
+                                        $fail('The key has already been taken in this catalog scope.');
+                                    }
+                                };
+                            })
+                            ->helperText('Unique identifier (lowercase letters, numbers, and underscores only)'),
 
                         Select::make('default_protocol')
                             ->label('Protocol Type')
@@ -169,6 +230,21 @@ class DeviceTypeForm
                     ])
                     ->columnSpanFull()
                     ->description('Configure protocol-specific connection settings'),
+
+                Section::make('Onboarding Flow')
+                    ->schema([
+                        Placeholder::make('onboarding_step_1')
+                            ->hiddenLabel()
+                            ->content('1. Save this device type with protocol defaults.'),
+                        Placeholder::make('onboarding_step_2')
+                            ->hiddenLabel()
+                            ->content('2. Add a schema contract + active version from the "Device Schemas" relation.'),
+                        Placeholder::make('onboarding_step_3')
+                            ->hiddenLabel()
+                            ->content('3. Create devices using this type, then open each device control dashboard to validate commands and state feedback.'),
+                    ])
+                    ->columnSpanFull()
+                    ->columns(1),
             ]);
     }
 }

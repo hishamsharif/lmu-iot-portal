@@ -6,11 +6,14 @@ namespace App\Filament\Admin\Resources\DeviceManagement\Devices\Pages;
 
 use App\Domain\DeviceControl\Enums\CommandStatus;
 use App\Domain\DeviceControl\Models\DeviceCommandLog;
+use App\Domain\DeviceControl\Services\CommandPayloadResolver;
+use App\Domain\DeviceControl\Services\ControlSchemaBuilder;
 use App\Domain\DeviceControl\Services\DeviceCommandDispatcher;
 use App\Domain\DeviceManagement\Models\Device;
 use App\Domain\DeviceManagement\Publishing\Nats\NatsDeviceStateStore;
 use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
 use App\Filament\Admin\Resources\DeviceManagement\Devices\DeviceResource;
+use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\CodeEditor;
 use Filament\Forms\Components\CodeEditor\Enums\Language;
 use Filament\Forms\Components\Radio;
@@ -43,12 +46,45 @@ class DeviceControlDashboard extends Page implements HasForms, HasTable
 
     public ?string $commandPayloadJson = '{}';
 
+    public bool $useAdvancedJson = false;
+
+    /**
+     * @var array<string, mixed>
+     */
+    public array $controlValues = [];
+
+    /**
+     * @var array<int, array{
+     *     key: string,
+     *     label: string,
+     *     json_path: string,
+     *     widget: string,
+     *     type: string,
+     *     required: bool,
+     *     default: mixed,
+     *     min: int|float|null,
+     *     max: int|float|null,
+     *     step: int|float,
+     *     options: array<int|string, string>,
+     *     unit: string|null,
+     *     button_value: mixed
+     * }>
+     */
+    public array $controlSchema = [];
+
     /**
      * Initial device state loaded from the NATS KV store on page mount.
      *
      * @var array{topic: string, payload: array<string, mixed>, stored_at: string}|null
      */
     public ?array $initialDeviceState = null;
+
+    /**
+     * Initial per-topic device states loaded from the NATS KV store on page mount.
+     *
+     * @var array<int, array{topic: string, payload: array<string, mixed>, stored_at: string}>
+     */
+    public array $initialDeviceStates = [];
 
     public static function getNavigationLabel(): string
     {
@@ -88,12 +124,20 @@ class DeviceControlDashboard extends Page implements HasForms, HasTable
                             ->state(fn (): string => $this->getMqttSettings()),
                     ]),
 
-                    CodeEditor::make('commandPayloadJson')
-                        ->hiddenLabel()
-                        ->language(Language::Json)
-                        ->wrap()
-                        ->required()
-                        ->markAsRequired(false),
+                    Group::make([
+                        Checkbox::make('useAdvancedJson')
+                            ->label('Advanced JSON mode')
+                            ->helperText('Enable to edit and send raw JSON payloads directly.')
+                            ->live(),
+
+                        CodeEditor::make('commandPayloadJson')
+                            ->hiddenLabel()
+                            ->language(Language::Json)
+                            ->wrap()
+                            ->required()
+                            ->markAsRequired(false)
+                            ->visible(fn (): bool => $this->useAdvancedJson),
+                    ]),
                 ]),
             ]);
     }
@@ -122,6 +166,8 @@ class DeviceControlDashboard extends Page implements HasForms, HasTable
 
         if ($topics->isEmpty()) {
             $this->commandPayloadJson = '{}';
+            $this->controlSchema = [];
+            $this->controlValues = [];
 
             return;
         }
@@ -134,7 +180,40 @@ class DeviceControlDashboard extends Page implements HasForms, HasTable
             $this->selectedTopicId = (string) $topic->id;
             $template = $topic->buildCommandPayloadTemplate();
             $this->commandPayloadJson = json_encode($template, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}';
+
+            /** @var ControlSchemaBuilder $builder */
+            $builder = app(ControlSchemaBuilder::class);
+            $this->controlSchema = $builder->buildForTopic($topic);
+            $this->controlValues = $builder->defaultControlValues($topic);
+            $this->normalizeControlValuesForUi();
         }
+    }
+
+    public function sendButtonCommand(string $parameterKey): void
+    {
+        if ($parameterKey === '') {
+            return;
+        }
+
+        $buttonControl = null;
+
+        foreach ($this->controlSchema as $control) {
+            if ($control['key'] !== $parameterKey) {
+                continue;
+            }
+
+            $buttonControl = $control;
+            break;
+        }
+
+        if ($buttonControl === null || $buttonControl['widget'] !== 'button') {
+            return;
+        }
+
+        $this->controlValues[$parameterKey] = $buttonControl['button_value'] ?? true;
+        $this->useAdvancedJson = false;
+
+        $this->sendCommand();
     }
 
     public function sendCommand(): void
@@ -160,18 +239,45 @@ class DeviceControlDashboard extends Page implements HasForms, HasTable
             return;
         }
 
-        /** @var array<string, mixed>|null $payload */
-        $payload = json_decode($this->commandPayloadJson ?? '{}', true);
+        /** @var CommandPayloadResolver $payloadResolver */
+        $payloadResolver = app(CommandPayloadResolver::class);
 
-        if (! is_array($payload)) {
+        $payload = [];
+        $errors = [];
+
+        if ($this->useAdvancedJson) {
+            /** @var mixed $decodedPayload */
+            $decodedPayload = json_decode($this->commandPayloadJson ?? '{}', true);
+
+            if (! is_array($decodedPayload)) {
+                Notification::make()
+                    ->title('Invalid JSON')
+                    ->body('The command payload is not valid JSON.')
+                    ->danger()
+                    ->send();
+
+                return;
+            }
+
+            $payload = $this->normalizePayloadArray($decodedPayload);
+            $errors = $payloadResolver->validatePayload($topic, $payload);
+        } else {
+            $resolved = $payloadResolver->resolveFromControls($topic, $this->controlValues);
+            $payload = $resolved['payload'];
+            $errors = $resolved['errors'];
+        }
+
+        if ($errors !== []) {
             Notification::make()
-                ->title('Invalid JSON')
-                ->body('The command payload is not valid JSON.')
+                ->title('Invalid control values')
+                ->body($this->formatValidationErrors($errors))
                 ->danger()
                 ->send();
 
             return;
         }
+
+        $this->commandPayloadJson = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}';
 
         /** @var Device $device */
         $device = $this->getRecord();
@@ -339,9 +445,64 @@ class DeviceControlDashboard extends Page implements HasForms, HasTable
         try {
             /** @var NatsDeviceStateStore $stateStore */
             $stateStore = app(NatsDeviceStateStore::class);
-            $this->initialDeviceState = $stateStore->getLastState($device->uuid);
+            $this->initialDeviceStates = $stateStore->getAllStates($device->uuid);
+            $this->initialDeviceState = $this->initialDeviceStates[0] ?? null;
         } catch (\Throwable) {
+            $this->initialDeviceStates = [];
             $this->initialDeviceState = null;
         }
+    }
+
+    /**
+     * @param  array<string, string>  $errors
+     */
+    private function formatValidationErrors(array $errors): string
+    {
+        $messages = [];
+
+        foreach ($errors as $key => $message) {
+            $messages[] = "{$key}: {$message}";
+        }
+
+        return implode("\n", $messages);
+    }
+
+    private function normalizeControlValuesForUi(): void
+    {
+        foreach ($this->controlSchema as $control) {
+            if ($control['widget'] !== 'json') {
+                continue;
+            }
+
+            $key = $control['key'];
+
+            if (! array_key_exists($key, $this->controlValues)) {
+                continue;
+            }
+
+            $current = $this->controlValues[$key];
+
+            if (is_array($current)) {
+                $this->controlValues[$key] = json_encode($current, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}';
+            }
+        }
+    }
+
+    /**
+     * @param  array<int|string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function normalizePayloadArray(array $payload): array
+    {
+        $normalized = [];
+
+        foreach ($payload as $key => $value) {
+            $normalizedKey = is_string($key) ? $key : (string) $key;
+            $normalized[$normalizedKey] = is_array($value)
+                ? $this->normalizePayloadArray($value)
+                : $value;
+        }
+
+        return $normalized;
     }
 }

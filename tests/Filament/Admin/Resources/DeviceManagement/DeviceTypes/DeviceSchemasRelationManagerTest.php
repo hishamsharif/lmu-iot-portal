@@ -102,3 +102,22 @@ it('can search schemas by name', function (): void {
         ->assertCanSeeTableRecords([$schema1])
         ->assertCanNotSeeTableRecords([$schema2]);
 });
+
+it('creates an initial active schema version during onboarding by default', function (): void {
+    livewire(DeviceSchemasRelationManager::class, [
+        'ownerRecord' => $this->deviceType,
+        'pageClass' => EditDeviceType::class,
+    ])
+        ->callTableAction('create', data: [
+            'name' => 'RGB Contract',
+        ])
+        ->assertHasNoFormErrors();
+
+    $schema = DeviceSchema::query()
+        ->where('device_type_id', $this->deviceType->id)
+        ->where('name', 'RGB Contract')
+        ->first();
+
+    expect($schema)->not->toBeNull()
+        ->and($schema?->versions()->where('version', 1)->where('status', 'active')->exists())->toBeTrue();
+});

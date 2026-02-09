@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Domain\DeviceControl\Enums\CommandStatus;
 use App\Domain\DeviceControl\Models\DeviceCommandLog;
+use App\Domain\DeviceControl\Models\DeviceDesiredTopicState;
 use App\Domain\DeviceControl\Services\DeviceCommandDispatcher;
 use App\Domain\DeviceManagement\Models\Device;
 use App\Domain\DeviceManagement\Models\DeviceType;
@@ -136,10 +137,17 @@ it('publishes to correct NATS subject and updates status to sent', function (): 
         payload: ['power' => 'on'],
     );
 
+    /** @var array<string, mixed>|null $publishedPayload */
+    $publishedPayload = json_decode($fakePublisher->published[0]['payload'], true);
+
     expect($fakePublisher->published)->toHaveCount(1)
         ->and($fakePublisher->published[0]['subject'])->toBe('devices.pump-42.control')
+        ->and($publishedPayload)->toBeArray()
+        ->and(data_get($publishedPayload, 'power'))->toBe('on')
+        ->and(data_get($publishedPayload, '_meta.command_id'))->toBe($commandLog->correlation_id)
         ->and($commandLog->status)->toBe(CommandStatus::Sent)
-        ->and($commandLog->sent_at)->not->toBeNull();
+        ->and($commandLog->sent_at)->not->toBeNull()
+        ->and($commandLog->correlation_id)->not->toBeNull();
 
     Event::assertDispatched(CommandSent::class, function (CommandSent $event) use ($commandLog): bool {
         return $event->commandLog->id === $commandLog->id
@@ -208,4 +216,36 @@ it('stores the command log in the database', function (): void {
         'schema_version_topic_id' => $topic->id,
         'status' => CommandStatus::Sent->value,
     ]);
+});
+
+it('upserts desired topic state when dispatching commands', function (): void {
+    Event::fake([CommandDispatched::class, CommandSent::class]);
+
+    [$device, $topic] = createDeviceWithSubscribeTopic();
+    bindFakeNatsPublisher();
+
+    /** @var DeviceCommandDispatcher $dispatcher */
+    $dispatcher = app(DeviceCommandDispatcher::class);
+
+    $first = $dispatcher->dispatch(
+        device: $device,
+        topic: $topic,
+        payload: ['power' => 'on'],
+    );
+
+    $second = $dispatcher->dispatch(
+        device: $device,
+        topic: $topic,
+        payload: ['power' => 'off'],
+    );
+
+    $state = DeviceDesiredTopicState::query()
+        ->where('device_id', $device->id)
+        ->where('schema_version_topic_id', $topic->id)
+        ->first();
+
+    expect($state)->not->toBeNull()
+        ->and($state->desired_payload)->toBe(['power' => 'off'])
+        ->and($state->correlation_id)->toBe($second->correlation_id)
+        ->and($state->reconciled_at)->toBeNull();
 });

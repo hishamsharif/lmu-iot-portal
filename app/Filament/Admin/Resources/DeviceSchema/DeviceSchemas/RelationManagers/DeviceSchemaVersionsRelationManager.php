@@ -8,6 +8,8 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\CodeEditor;
+use Filament\Forms\Components\CodeEditor\Enums\Language;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -41,6 +43,16 @@ class DeviceSchemaVersionsRelationManager extends RelationManager
                 Textarea::make('notes')
                     ->rows(3)
                     ->columnSpanFull(),
+
+                TextInput::make('firmware_filename')
+                    ->maxLength(255)
+                    ->placeholder('esp32-device.ino')
+                    ->columnSpanFull(),
+
+                CodeEditor::make('firmware_template')
+                    ->language(Language::Cpp)
+                    ->columnSpanFull()
+                    ->helperText('Supports placeholders like {{DEVICE_ID}}, {{CONTROL_TOPIC}}, and {{STATE_TOPIC}}.'),
             ])
             ->columns(2);
     }

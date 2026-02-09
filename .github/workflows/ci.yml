@@ -46,7 +46,7 @@ jobs:
       env:
         DB_CONNECTION: sqlite
         DB_DATABASE: database/database.sqlite
-      run: vendor/bin/pest
+      run: vendor/bin/pest --parallel
     - name: Check code style (Laravel Pint)
       run: vendor/bin/pint --test
     - name: Run static analysis (PHPStan)

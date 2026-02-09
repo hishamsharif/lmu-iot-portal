@@ -52,3 +52,11 @@ it('can navigate to edit page from view page', function (): void {
     livewire(ViewDeviceType::class, ['record' => $deviceType->id])
         ->assertActionExists('edit');
 });
+
+it('shows onboarding and replicate actions on the header', function (): void {
+    $deviceType = DeviceType::factory()->mqtt()->create();
+
+    livewire(ViewDeviceType::class, ['record' => $deviceType->id])
+        ->assertActionExists('onboardDevice')
+        ->assertActionExists('replicate');
+});

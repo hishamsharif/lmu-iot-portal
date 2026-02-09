@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\DeviceSchema\Models;
 
+use App\Domain\DeviceSchema\Enums\ControlWidgetType;
 use App\Domain\DeviceSchema\Enums\ParameterDataType;
 use App\Domain\DeviceSchema\Services\JsonLogicEvaluator;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -31,6 +32,7 @@ class ParameterDefinition extends Model
             'is_critical' => 'bool',
             'is_active' => 'bool',
             'validation_rules' => 'array',
+            'control_ui' => 'array',
             'mutation_expression' => 'array',
             'default_value' => 'json',
         ];
@@ -59,6 +61,129 @@ class ParameterDefinition extends Model
             ParameterDataType::Boolean => false,
             ParameterDataType::String => '',
             ParameterDataType::Json => [],
+        };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function resolvedControlUi(): array
+    {
+        $controlUi = $this->getAttribute('control_ui');
+
+        return is_array($controlUi) ? $controlUi : [];
+    }
+
+    public function resolvedWidgetType(): ControlWidgetType
+    {
+        $explicitWidget = $this->resolvedControlUi()['widget'] ?? null;
+
+        if (is_string($explicitWidget)) {
+            $widget = ControlWidgetType::tryFrom($explicitWidget);
+
+            if ($widget instanceof ControlWidgetType) {
+                return $widget;
+            }
+        }
+
+        $rules = $this->resolvedValidationRules();
+
+        if (
+            in_array($this->type, [ParameterDataType::Integer, ParameterDataType::Decimal], true)
+            && array_key_exists('min', $rules)
+            && array_key_exists('max', $rules)
+            && is_numeric($rules['min'])
+            && is_numeric($rules['max'])
+        ) {
+            return ControlWidgetType::Slider;
+        }
+
+        return match ($this->type) {
+            ParameterDataType::Boolean => ControlWidgetType::Toggle,
+            ParameterDataType::String => $this->resolveStringWidget($rules),
+            ParameterDataType::Integer,
+            ParameterDataType::Decimal => ControlWidgetType::Number,
+            ParameterDataType::Json => ControlWidgetType::Json,
+        };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function resolvedValidationRules(): array
+    {
+        $rules = $this->getAttribute('validation_rules');
+
+        return is_array($rules) ? $rules : [];
+    }
+
+    /**
+     * @return array<int|string, string>
+     */
+    public function resolvedSelectOptions(): array
+    {
+        $rules = $this->resolvedValidationRules();
+        $enum = $rules['enum'] ?? null;
+
+        if (! is_array($enum)) {
+            return [];
+        }
+
+        $options = [];
+
+        foreach ($enum as $value) {
+            if (! is_scalar($value) && ! $value instanceof \Stringable) {
+                continue;
+            }
+
+            $option = (string) $value;
+            $options[$option] = $option;
+        }
+
+        return $options;
+    }
+
+    /**
+     * @return array{min: int|float|null, max: int|float|null, step: int|float}
+     */
+    public function resolvedNumericRange(): array
+    {
+        $rules = $this->resolvedValidationRules();
+        $ui = $this->resolvedControlUi();
+
+        $min = isset($ui['min']) && is_numeric($ui['min'])
+            ? +$ui['min']
+            : (isset($rules['min']) && is_numeric($rules['min']) ? +$rules['min'] : null);
+
+        $max = isset($ui['max']) && is_numeric($ui['max'])
+            ? +$ui['max']
+            : (isset($rules['max']) && is_numeric($rules['max']) ? +$rules['max'] : null);
+
+        $step = isset($ui['step']) && is_numeric($ui['step'])
+            ? +$ui['step']
+            : ($this->type === ParameterDataType::Decimal ? 0.1 : 1);
+
+        return [
+            'min' => $min,
+            'max' => $max,
+            'step' => $step,
+        ];
+    }
+
+    public function resolvedButtonValue(): mixed
+    {
+        $ui = $this->resolvedControlUi();
+
+        if (array_key_exists('button_value', $ui)) {
+            return $ui['button_value'];
+        }
+
+        return match ($this->type) {
+            ParameterDataType::Boolean => true,
+            ParameterDataType::Integer => 1,
+            ParameterDataType::Decimal => 1.0,
+            ParameterDataType::String => 'pressed',
+            ParameterDataType::Json => ['pressed' => true],
         };
     }
 
@@ -248,5 +373,33 @@ class ParameterDefinition extends Model
             'error_code' => null,
             'is_critical' => false,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $rules
+     */
+    private function resolveStringWidget(array $rules): ControlWidgetType
+    {
+        $regex = $rules['regex'] ?? null;
+
+        if (
+            is_string($regex)
+            && str_contains(strtolower($regex), '#')
+            && str_contains(strtolower($regex), 'a-f')
+        ) {
+            return ControlWidgetType::Color;
+        }
+
+        $searchableContent = strtolower("{$this->key} {$this->label} {$this->json_path}");
+
+        if (str_contains($searchableContent, 'color') || str_contains($searchableContent, 'colour')) {
+            return ControlWidgetType::Color;
+        }
+
+        if (is_array($rules['enum'] ?? null) && $rules['enum'] !== []) {
+            return ControlWidgetType::Select;
+        }
+
+        return ControlWidgetType::Text;
     }
 }

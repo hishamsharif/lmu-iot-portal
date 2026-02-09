@@ -11,8 +11,8 @@ function createFakeDeviceStateStore(?array $storedState = null): NatsDeviceState
 {
     return new class($storedState) implements NatsDeviceStateStore
     {
-        /** @var array<string, array{topic: string, payload: array<string, mixed>, stored_at: string}> */
-        public array $stored = [];
+        /** @var array<string, array<string, array{topic: string, payload: array<string, mixed>, stored_at: string}>> */
+        public array $storedByDevice = [];
 
         /**
          * @param  array{topic: string, payload: array<string, mixed>, stored_at: string}|null  $initialState
@@ -22,13 +22,14 @@ function createFakeDeviceStateStore(?array $storedState = null): NatsDeviceState
             if ($initialState !== null) {
                 $deviceUuid = $initialState['device_uuid'] ?? 'default';
                 unset($initialState['device_uuid']);
-                $this->stored[$deviceUuid] = $initialState;
+                $topic = $initialState['topic'] ?? 'unknown/topic';
+                $this->storedByDevice[$deviceUuid][$topic] = $initialState;
             }
         }
 
         public function store(string $deviceUuid, string $topic, array $payload, string $host = '127.0.0.1', int $port = 4223): void
         {
-            $this->stored[$deviceUuid] = [
+            $this->storedByDevice[$deviceUuid][$topic] = [
                 'topic' => $topic,
                 'payload' => $payload,
                 'stored_at' => now()->toIso8601String(),
@@ -37,7 +38,28 @@ function createFakeDeviceStateStore(?array $storedState = null): NatsDeviceState
 
         public function getLastState(string $deviceUuid, string $host = '127.0.0.1', int $port = 4223): ?array
         {
-            return $this->stored[$deviceUuid] ?? null;
+            $states = $this->getAllStates($deviceUuid, $host, $port);
+
+            return $states[0] ?? null;
+        }
+
+        public function getAllStates(string $deviceUuid, string $host = '127.0.0.1', int $port = 4223): array
+        {
+            $states = array_values($this->storedByDevice[$deviceUuid] ?? []);
+
+            usort($states, function (array $left, array $right): int {
+                $leftTime = strtotime($left['stored_at']) ?: 0;
+                $rightTime = strtotime($right['stored_at']) ?: 0;
+
+                return $rightTime <=> $leftTime;
+            });
+
+            return $states;
+        }
+
+        public function getStateByTopic(string $deviceUuid, string $topic, string $host = '127.0.0.1', int $port = 4223): ?array
+        {
+            return $this->storedByDevice[$deviceUuid][$topic] ?? null;
         }
     };
 }
@@ -89,4 +111,19 @@ it('stores state per device independently', function (): void {
 
     expect($store->getLastState('device-1')['payload'])->toBe(['on' => true])
         ->and($store->getLastState('device-2')['payload'])->toBe(['on' => false]);
+});
+
+it('retrieves all states and specific state by topic', function (): void {
+    $store = createFakeDeviceStateStore();
+
+    $store->store('device-1', 'devices/light-1/state', ['on' => true]);
+    $store->store('device-1', 'devices/light-1/ack', ['accepted' => true]);
+
+    $all = $store->getAllStates('device-1');
+    $state = $store->getStateByTopic('device-1', 'devices/light-1/state');
+    $ack = $store->getStateByTopic('device-1', 'devices/light-1/ack');
+
+    expect($all)->toHaveCount(2)
+        ->and($state['payload'])->toBe(['on' => true])
+        ->and($ack['payload'])->toBe(['accepted' => true]);
 });

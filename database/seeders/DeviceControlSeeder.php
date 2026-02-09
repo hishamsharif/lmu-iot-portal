@@ -19,34 +19,68 @@ class DeviceControlSeeder extends Seeder
     {
         $organization = Organization::first() ?? Organization::factory()->create();
 
-        $deviceType = DeviceType::where('key', 'dimmable_light')->first();
+        $this->seedDeviceForType(
+            organizationId: $organization->id,
+            deviceTypeKey: 'dimmable_light',
+            externalId: 'dimmable-light-01',
+            name: 'Lobby Dimmable Light',
+            metadata: [
+                'location' => 'Main Lobby',
+                'model' => 'DL-10',
+            ],
+        );
 
-        if (! $deviceType) {
-            $this->command->warn('Dimmable Light DeviceType not found. Please run DeviceSchemaSeeder first.');
+        $this->seedDeviceForType(
+            organizationId: $organization->id,
+            deviceTypeKey: 'rgb_led_controller',
+            externalId: 'rgb-led-01',
+            name: 'Entrance RGB LED Strip',
+            metadata: [
+                'location' => 'Entrance Canopy',
+                'model' => 'RGB-3000',
+            ],
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $metadata
+     */
+    private function seedDeviceForType(
+        int $organizationId,
+        string $deviceTypeKey,
+        string $externalId,
+        string $name,
+        array $metadata,
+    ): void {
+        $deviceType = DeviceType::query()
+            ->where('key', $deviceTypeKey)
+            ->first();
+
+        if ($deviceType === null) {
+            $this->command?->warn("{$deviceTypeKey} device type not found. Please run DeviceSchemaSeeder first.");
 
             return;
         }
 
-        $schema = DeviceSchema::where('device_type_id', $deviceType->id)->first();
+        $schema = DeviceSchema::query()
+            ->where('device_type_id', $deviceType->id)
+            ->first();
         $version = $schema?->versions()->where('status', 'active')->first();
 
-        if (! $version) {
-            $this->command->warn('Active schema version for Dimmable Light not found.');
+        if ($version === null) {
+            $this->command?->warn("Active schema version for {$deviceTypeKey} not found.");
 
             return;
         }
 
         Device::firstOrCreate([
-            'organization_id' => $organization->id,
+            'organization_id' => $organizationId,
             'device_type_id' => $deviceType->id,
-            'external_id' => 'dimmable-light-01',
+            'external_id' => $externalId,
         ], [
-            'name' => 'Lobby Dimmable Light',
+            'name' => $name,
             'device_schema_version_id' => $version->id,
-            'metadata' => [
-                'location' => 'Main Lobby',
-                'model' => 'DL-10',
-            ],
+            'metadata' => $metadata,
             'is_active' => true,
         ]);
     }

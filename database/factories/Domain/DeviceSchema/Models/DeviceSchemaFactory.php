@@ -24,7 +24,7 @@ class DeviceSchemaFactory extends Factory
     {
         return [
             'device_type_id' => DeviceType::factory(),
-            'name' => $this->faker->words(3, true),
+            'name' => 'Schema '.strtoupper(bin2hex(random_bytes(2))),
         ];
     }
 

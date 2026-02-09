@@ -28,10 +28,12 @@ class DeviceCommandLogFactory extends Factory
         return [
             'device_id' => Device::factory(),
             'schema_version_topic_id' => SchemaVersionTopic::factory()->subscribe(),
+            'response_schema_version_topic_id' => null,
             'user_id' => User::factory(),
             'command_payload' => [
                 'brightness' => $this->faker->numberBetween(0, 100),
             ],
+            'correlation_id' => $this->faker->optional()->uuid(),
             'status' => CommandStatus::Pending,
             'response_payload' => null,
             'error_message' => null,

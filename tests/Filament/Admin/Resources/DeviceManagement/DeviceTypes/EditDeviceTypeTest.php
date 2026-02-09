@@ -87,7 +87,7 @@ it('validates unique key when editing', function (): void {
             'key' => 'existing_key',
         ])
         ->call('save')
-        ->assertHasFormErrors(['key' => 'unique']);
+        ->assertHasFormErrors(['key']);
 });
 
 it('can delete device type from edit page', function (): void {

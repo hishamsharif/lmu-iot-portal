@@ -26,12 +26,13 @@ class DeviceTypeFactory extends Factory
      */
     public function definition(): array
     {
-        $protocol = $this->faker->randomElement([ProtocolType::Mqtt, ProtocolType::Http]);
+        $protocol = random_int(0, 1) === 0 ? ProtocolType::Mqtt : ProtocolType::Http;
+        $key = Str::slug('device_type_'.Str::lower(Str::random(8)), '_');
 
         return [
             'organization_id' => null, // Default to global
-            'key' => Str::slug($this->faker->unique()->words(2, true).'_'.Str::lower($this->faker->lexify('???')), '_'),
-            'name' => $this->faker->words(3, true),
+            'key' => $key,
+            'name' => 'Device Type '.strtoupper(Str::random(4)),
             'default_protocol' => $protocol,
             'protocol_config' => $protocol === ProtocolType::Mqtt
                 ? $this->mqttConfig()
@@ -88,12 +89,14 @@ class DeviceTypeFactory extends Factory
      */
     protected function mqttConfig(): array
     {
+        $ports = [1883, 8883];
+
         return (new MqttProtocolConfig(
-            brokerHost: $this->faker->domainName,
-            brokerPort: $this->faker->randomElement([1883, 8883]),
-            username: $this->faker->userName,
-            password: $this->faker->password,
-            useTls: $this->faker->boolean(30),
+            brokerHost: 'broker-'.strtolower(Str::random(6)).'.test',
+            brokerPort: $ports[array_rand($ports)],
+            username: 'mqtt_'.strtolower(Str::random(6)),
+            password: Str::random(16),
+            useTls: random_int(1, 100) <= 30,
             baseTopic: 'device',
         ))->toArray();
     }
@@ -105,21 +108,24 @@ class DeviceTypeFactory extends Factory
      */
     protected function httpConfig(): array
     {
-        $authType = $this->faker->randomElement([HttpAuthType::None, HttpAuthType::Bearer, HttpAuthType::Basic]);
+        $authTypes = [HttpAuthType::None, HttpAuthType::Bearer, HttpAuthType::Basic];
+        $methods = ['POST', 'PUT'];
+        $timeouts = [15, 30, 60];
+        $authType = $authTypes[array_rand($authTypes)];
 
         return (new HttpProtocolConfig(
-            baseUrl: $this->faker->url,
+            baseUrl: 'https://api.example.test',
             telemetryEndpoint: '/api/telemetry',
-            method: $this->faker->randomElement(['POST', 'PUT']),
+            method: $methods[array_rand($methods)],
             headers: [
                 'Content-Type' => 'application/json',
                 'X-API-Version' => 'v1',
             ],
             authType: $authType,
-            authToken: $authType === HttpAuthType::Bearer ? $this->faker->sha256 : null,
-            authUsername: $authType === HttpAuthType::Basic ? $this->faker->userName : null,
-            authPassword: $authType === HttpAuthType::Basic ? $this->faker->password : null,
-            timeout: $this->faker->randomElement([15, 30, 60]),
+            authToken: $authType === HttpAuthType::Bearer ? hash('sha256', Str::random(20)) : null,
+            authUsername: $authType === HttpAuthType::Basic ? 'http_'.strtolower(Str::random(6)) : null,
+            authPassword: $authType === HttpAuthType::Basic ? Str::random(16) : null,
+            timeout: $timeouts[array_rand($timeouts)],
         ))->toArray();
     }
 }

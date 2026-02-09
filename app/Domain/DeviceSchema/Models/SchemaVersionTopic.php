@@ -7,9 +7,12 @@ namespace App\Domain\DeviceSchema\Models;
 use App\Domain\DeviceControl\Models\DeviceCommandLog;
 use App\Domain\DeviceManagement\Models\Device;
 use App\Domain\DeviceSchema\Enums\TopicDirection;
+use App\Domain\DeviceSchema\Enums\TopicLinkType;
+use App\Domain\DeviceSchema\Enums\TopicPurpose;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -29,6 +32,7 @@ class SchemaVersionTopic extends Model
     {
         return [
             'direction' => TopicDirection::class,
+            'purpose' => TopicPurpose::class,
             'qos' => 'integer',
             'retain' => 'boolean',
             'sequence' => 'integer',
@@ -60,6 +64,53 @@ class SchemaVersionTopic extends Model
     }
 
     /**
+     * @return HasMany<SchemaVersionTopicLink, $this>
+     */
+    public function outgoingLinks(): HasMany
+    {
+        return $this->hasMany(SchemaVersionTopicLink::class, 'from_schema_version_topic_id');
+    }
+
+    /**
+     * @return HasMany<SchemaVersionTopicLink, $this>
+     */
+    public function incomingLinks(): HasMany
+    {
+        return $this->hasMany(SchemaVersionTopicLink::class, 'to_schema_version_topic_id');
+    }
+
+    /**
+     * @return BelongsToMany<SchemaVersionTopic, $this>
+     */
+    public function linkedFeedbackTopics(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            SchemaVersionTopic::class,
+            'schema_version_topic_links',
+            'from_schema_version_topic_id',
+            'to_schema_version_topic_id',
+        )->withPivot('link_type')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<SchemaVersionTopic, $this>
+     */
+    public function stateFeedbackTopics(): BelongsToMany
+    {
+        return $this->linkedFeedbackTopics()
+            ->wherePivot('link_type', TopicLinkType::StateFeedback->value);
+    }
+
+    /**
+     * @return BelongsToMany<SchemaVersionTopic, $this>
+     */
+    public function ackFeedbackTopics(): BelongsToMany
+    {
+        return $this->linkedFeedbackTopics()
+            ->wherePivot('link_type', TopicLinkType::AckFeedback->value);
+    }
+
+    /**
      * Resolve the full MQTT topic for a given device.
      *
      * Full topic = {baseTopic}/{deviceIdentifier}/{suffix}
@@ -83,6 +134,49 @@ class SchemaVersionTopic extends Model
     public function isSubscribe(): bool
     {
         return $this->direction === TopicDirection::Subscribe;
+    }
+
+    public function resolvedPurpose(): TopicPurpose
+    {
+        $purpose = $this->getAttribute('purpose');
+
+        if ($purpose instanceof TopicPurpose) {
+            return $purpose;
+        }
+
+        $suffix = strtolower((string) $this->suffix);
+
+        return match (true) {
+            $this->isSubscribe() => TopicPurpose::Command,
+            str_contains($suffix, 'ack') => TopicPurpose::Ack,
+            ($this->retain ?? false) || in_array($suffix, ['state', 'status'], true) => TopicPurpose::State,
+            default => TopicPurpose::Telemetry,
+        };
+    }
+
+    public function isPurposeCommand(): bool
+    {
+        return $this->resolvedPurpose() === TopicPurpose::Command;
+    }
+
+    public function isPurposeState(): bool
+    {
+        return $this->resolvedPurpose() === TopicPurpose::State;
+    }
+
+    public function isPurposeTelemetry(): bool
+    {
+        return $this->resolvedPurpose() === TopicPurpose::Telemetry;
+    }
+
+    public function isPurposeEvent(): bool
+    {
+        return $this->resolvedPurpose() === TopicPurpose::Event;
+    }
+
+    public function isPurposeAck(): bool
+    {
+        return $this->resolvedPurpose() === TopicPurpose::Ack;
     }
 
     /**
