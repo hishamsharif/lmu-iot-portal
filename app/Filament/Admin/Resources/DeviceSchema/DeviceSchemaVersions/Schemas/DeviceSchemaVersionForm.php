@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Filament\Admin\Resources\DeviceSchema\DeviceSchemaVersions\Schemas;
 
+use Filament\Forms\Components\CodeEditor;
+use Filament\Forms\Components\CodeEditor\Enums\Language;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -44,6 +46,21 @@ class DeviceSchemaVersionForm
                             ->columnSpanFull(),
                     ])
                     ->columns(2),
+
+                Section::make('Firmware Template')
+                    ->collapsible()
+                    ->description('Store device firmware with placeholders like {{DEVICE_ID}}, {{CONTROL_TOPIC}}, and {{STATE_TOPIC}}.')
+                    ->schema([
+                        CodeEditor::make('firmware_template')
+                            ->label('Firmware Template')
+                            ->language(Language::Cpp)
+                            ->afterStateHydrated(function (CodeEditor $component, mixed $state): void {
+                                $component->state(is_string($state) ? $state : '');
+                            })
+                            ->columnSpanFull()
+                            ->helperText('This template is rendered per device from the Device resource with placeholders replaced automatically.'),
+                    ])
+                    ->columns(1),
             ]);
     }
 }

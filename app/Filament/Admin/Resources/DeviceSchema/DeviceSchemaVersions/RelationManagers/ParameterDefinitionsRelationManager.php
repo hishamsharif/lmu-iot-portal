@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Admin\Resources\DeviceSchema\DeviceSchemaVersions\RelationManagers;
 
+use App\Domain\DeviceSchema\Enums\ControlWidgetType;
 use App\Domain\DeviceSchema\Enums\ParameterDataType;
 use App\Domain\DeviceSchema\Enums\TopicDirection;
 use App\Domain\DeviceSchema\Models\DeviceSchemaVersion;
@@ -129,6 +130,41 @@ class ParameterDefinitionsRelationManager extends RelationManager
                     })
                     ->dehydrateStateUsing(fn (?string $state): mixed => $state ? json_decode($state, true) : null),
 
+                Select::make('control_ui.widget')
+                    ->label('Control Widget')
+                    ->options(ControlWidgetType::class)
+                    ->placeholder('Auto infer from type and validation rules')
+                    ->live()
+                    ->helperText('Override inferred widget type when this command parameter needs special UI treatment.')
+                    ->visible(fn (Get $get): bool => $this->isSubscribeTopic($get))
+                    ->columnSpanFull(),
+
+                TextInput::make('control_ui.min')
+                    ->numeric()
+                    ->visible(fn (Get $get): bool => $this->isNumericWidgetSelected($get)),
+
+                TextInput::make('control_ui.max')
+                    ->numeric()
+                    ->visible(fn (Get $get): bool => $this->isNumericWidgetSelected($get)),
+
+                TextInput::make('control_ui.step')
+                    ->numeric()
+                    ->visible(fn (Get $get): bool => $this->isNumericWidgetSelected($get)),
+
+                TextInput::make('control_ui.button_value')
+                    ->label('Button Value')
+                    ->helperText('Value injected when the button is pressed (e.g. true, 1, "pressed").')
+                    ->visible(fn (Get $get): bool => $this->selectedWidget($get) === ControlWidgetType::Button),
+
+                Select::make('control_ui.color_format')
+                    ->label('Color Format')
+                    ->options([
+                        'hex' => 'Hex (#RRGGBB)',
+                        'rgb' => 'RGB string (rgb(255,0,0))',
+                    ])
+                    ->default('hex')
+                    ->visible(fn (Get $get): bool => $this->selectedWidget($get) === ControlWidgetType::Color),
+
                 TagsInput::make('validation_error_code')
                     ->label('Validation error codes')
                     ->separator(',')
@@ -179,6 +215,31 @@ class ParameterDefinitionsRelationManager extends RelationManager
             ->where('id', $topicId)
             ->where('direction', TopicDirection::Subscribe)
             ->exists();
+    }
+
+    private function isNumericWidgetSelected(Get $get): bool
+    {
+        $widget = $this->selectedWidget($get);
+
+        return in_array($widget, [
+            ControlWidgetType::Slider,
+            ControlWidgetType::Number,
+        ], true);
+    }
+
+    private function selectedWidget(Get $get): ?ControlWidgetType
+    {
+        $widget = $get('control_ui.widget');
+
+        if ($widget instanceof ControlWidgetType) {
+            return $widget;
+        }
+
+        if (is_string($widget)) {
+            return ControlWidgetType::tryFrom($widget);
+        }
+
+        return null;
     }
 
     public function table(Table $table): Table

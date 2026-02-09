@@ -5,11 +5,15 @@ declare(strict_types=1);
 namespace App\Filament\Admin\Resources\DeviceManagement\Devices\Tables;
 
 use App\Domain\DeviceManagement\Models\Device;
+use App\Filament\Actions\DeviceManagement\ReplicateDeviceActions;
 use App\Filament\Actions\DeviceManagement\SimulatePublishingActions;
+use App\Filament\Actions\DeviceManagement\ViewFirmwareAction;
+use App\Filament\Admin\Resources\DeviceManagement\Devices\DeviceResource;
 use App\Filament\Admin\Resources\DeviceManagement\DeviceTypes\DeviceTypeResource;
 use App\Filament\Admin\Resources\Shared\Organizations\OrganizationResource;
 use Filament\Actions;
 use Filament\Support\Colors\Color;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -43,16 +47,15 @@ class DevicesTable
                         ? DeviceTypeResource::getUrl('view', ['record' => $record->device_type_id])
                         : null),
 
+                TextColumn::make('schemaVersion.version')
+                    ->label('Schema')
+                    ->formatStateUsing(fn (mixed $state): string => is_scalar($state) ? "v{$state}" : '—')
+                    ->sortable(),
+
                 IconColumn::make('is_active')
                     ->label('Active')
                     ->boolean()
                     ->sortable(),
-
-                IconColumn::make('is_simulated')
-                    ->label('Simulated')
-                    ->boolean()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('connection_state')
                     ->label('Status')
@@ -68,6 +71,11 @@ class DevicesTable
                     ->dateTime()
                     ->sortable()
                     ->toggleable(),
+
+                TextColumn::make('external_id')
+                    ->label('External ID')
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->placeholder('—'),
 
                 TextColumn::make('created_at')
                     ->dateTime()
@@ -92,10 +100,22 @@ class DevicesTable
                     ]),
             ])
             ->recordActions([
-                Actions\ViewAction::make(),
-                SimulatePublishingActions::recordAction(),
-                Actions\EditAction::make(),
-                Actions\DeleteAction::make(),
+                Actions\ActionGroup::make([
+                    Actions\ViewAction::make(),
+                    ViewFirmwareAction::make(),
+                    Actions\Action::make('controlDashboard')
+                        ->label('Control')
+                        ->icon(Heroicon::OutlinedCommandLine)
+                        ->url(fn (Device $record): string => DeviceResource::getUrl('control-dashboard', ['record' => $record]))
+                        ->visible(fn (Device $record): bool => $record->canBeControlled()),
+                    SimulatePublishingActions::recordAction()
+                        ->visible(fn (Device $record): bool => $record->canBeSimulated()),
+                    Actions\EditAction::make(),
+                    ReplicateDeviceActions::make(),
+                    Actions\DeleteAction::make(),
+                ])
+                    ->label('Actions')
+                    ->icon(Heroicon::OutlinedEllipsisVertical),
             ])
             ->toolbarActions([
                 Actions\BulkActionGroup::make([

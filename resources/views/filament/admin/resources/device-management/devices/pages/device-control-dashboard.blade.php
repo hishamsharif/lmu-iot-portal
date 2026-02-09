@@ -1,5 +1,71 @@
 <x-filament-panels::page>
     <style>
+        .dc-control-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+        .dc-control-card {
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            background: rgba(0, 0, 0, 0.02);
+        }
+        .dark .dc-control-card {
+            border-color: rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.02);
+        }
+        .dc-control-label {
+            display: block;
+            font-size: 0.8125rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: rgb(55, 65, 81);
+        }
+        .dark .dc-control-label {
+            color: rgb(229, 231, 235);
+        }
+        .dc-control-unit {
+            color: rgb(107, 114, 128);
+            font-weight: 500;
+            font-size: 0.75rem;
+            margin-left: 0.25rem;
+        }
+        .dc-control-meta {
+            margin-top: 0.375rem;
+            font-size: 0.6875rem;
+            color: rgb(107, 114, 128);
+            display: flex;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+        .dc-control-input,
+        .dc-control-select,
+        .dc-control-textarea {
+            width: 100%;
+            border: 1px solid rgba(0, 0, 0, 0.15);
+            border-radius: 0.375rem;
+            padding: 0.375rem 0.5rem;
+            font-size: 0.8125rem;
+            background: white;
+            color: rgb(31, 41, 55);
+        }
+        .dark .dc-control-input,
+        .dark .dc-control-select,
+        .dark .dc-control-textarea {
+            border-color: rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.05);
+            color: rgb(243, 244, 246);
+        }
+        .dc-control-slider {
+            width: 100%;
+            accent-color: rgb(245, 158, 11);
+        }
+        .dc-control-toggle {
+            width: 1rem;
+            height: 1rem;
+        }
         .dc-log {
             border: 1px solid rgba(0, 0, 0, 0.1);
             border-radius: 0.5rem;
@@ -69,11 +135,15 @@
         }
         .dc-badge[data-type="command.dispatched"] { background: rgba(59, 130, 246, 0.1); color: rgb(37, 99, 235); }
         .dc-badge[data-type="command.sent"] { background: rgba(6, 182, 212, 0.1); color: rgb(8, 145, 178); }
+        .dc-badge[data-type="command.completed"] { background: rgba(16, 185, 129, 0.1); color: rgb(5, 150, 105); }
+        .dc-badge[data-type="command.timeout"] { background: rgba(245, 158, 11, 0.12); color: rgb(180, 83, 9); }
         .dc-badge[data-type="device.state.received"] { background: rgba(16, 185, 129, 0.1); color: rgb(5, 150, 105); }
         .dc-badge[data-type="info"] { background: rgba(107, 114, 128, 0.1); color: rgb(75, 85, 99); }
         .dc-badge[data-type="error"] { background: rgba(239, 68, 68, 0.1); color: rgb(220, 38, 38); }
         .dark .dc-badge[data-type="command.dispatched"] { background: rgba(96, 165, 250, 0.15); color: rgb(147, 197, 253); }
         .dark .dc-badge[data-type="command.sent"] { background: rgba(34, 211, 238, 0.15); color: rgb(165, 243, 252); }
+        .dark .dc-badge[data-type="command.completed"] { background: rgba(52, 211, 153, 0.15); color: rgb(167, 243, 208); }
+        .dark .dc-badge[data-type="command.timeout"] { background: rgba(253, 186, 116, 0.15); color: rgb(251, 191, 36); }
         .dark .dc-badge[data-type="device.state.received"] { background: rgba(52, 211, 153, 0.15); color: rgb(167, 243, 208); }
         .dark .dc-badge[data-type="info"] { background: rgba(156, 163, 175, 0.12); color: rgb(209, 213, 219); }
         .dark .dc-badge[data-type="error"] { background: rgba(248, 113, 113, 0.15); color: rgb(252, 165, 165); }
@@ -98,7 +168,7 @@
         }
         .dc-state-grid {
             display: grid;
-            grid-template-columns: 3fr 1fr;
+            grid-template-columns: 3fr 1.5fr;
             gap: 1rem;
             align-items: start;
         }
@@ -107,26 +177,47 @@
                 grid-template-columns: 1fr;
             }
         }
+        .dc-state-list {
+            display: grid;
+            gap: 0.75rem;
+        }
+        .dc-state-card {
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .dark .dc-state-card {
+            border-color: rgba(255, 255, 255, 0.08);
+        }
+        .dc-state-header {
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+            font-size: 0.75rem;
+            color: rgb(75, 85, 99);
+            background: rgba(0, 0, 0, 0.02);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            word-break: break-all;
+        }
+        .dark .dc-state-header {
+            border-bottom-color: rgba(255, 255, 255, 0.06);
+            background: rgba(255, 255, 255, 0.03);
+            color: rgb(209, 213, 219);
+        }
         .dc-state-json {
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-            font-size: 0.8125rem;
-            line-height: 1.6;
+            font-size: 0.75rem;
+            line-height: 1.5;
             white-space: pre-wrap;
             word-break: break-all;
             overflow-wrap: break-word;
             padding: 0.75rem;
-            border-radius: 0.375rem;
-            background: rgba(0, 0, 0, 0.03);
-            border: 1px solid rgba(0, 0, 0, 0.08);
-            color: rgb(55, 65, 81);
-            min-height: 8rem;
-            max-height: 20rem;
+            max-height: 14rem;
             overflow-y: auto;
         }
-        .dark .dc-state-json {
-            background: rgba(255, 255, 255, 0.03);
-            border-color: rgba(255, 255, 255, 0.08);
-            color: rgb(229, 231, 235);
+        .dc-state-meta {
+            font-size: 0.6875rem;
+            color: rgb(156, 163, 175);
+            padding: 0 0.75rem 0.75rem;
         }
         .dc-state-empty {
             padding: 2rem 0.75rem;
@@ -135,29 +226,87 @@
             font-size: 0.8125rem;
             font-style: italic;
         }
-        .dc-state-meta {
-            font-size: 0.6875rem;
-            color: rgb(156, 163, 175);
-            margin-top: 0.5rem;
-        }
-        .dc-state-dot {
-            display: inline-block;
-            width: 0.5rem;
-            height: 0.5rem;
-            border-radius: 50%;
-            margin-right: 0.375rem;
-            vertical-align: middle;
-        }
-        .dc-state-dot-active { background: rgb(16, 185, 129); }
-        .dc-state-dot-idle { background: rgb(156, 163, 175); }
     </style>
 
     <x-filament::section>
         <x-slot name="heading">Send Command</x-slot>
-        <x-slot name="description">Select a topic and send a JSON command to this device via NATS.</x-slot>
+        <x-slot name="description">Select a command topic and control parameters. Enable advanced mode to send raw JSON.</x-slot>
 
         @if(count($this->subscribeTopicOptions) > 0)
             {{ $this->form }}
+
+            @if(count($this->controlSchema) > 0 && ! $this->useAdvancedJson)
+                <div class="dc-control-grid">
+                    @foreach($this->controlSchema as $control)
+                        <div class="dc-control-card">
+                            <label class="dc-control-label">
+                                {{ $control['label'] }}
+                                @if($control['unit'])
+                                    <span class="dc-control-unit">{{ $control['unit'] }}</span>
+                                @endif
+                            </label>
+
+                            @if($control['widget'] === 'slider')
+                                <input
+                                    type="range"
+                                    min="{{ $control['min'] ?? 0 }}"
+                                    max="{{ $control['max'] ?? 100 }}"
+                                    step="{{ $control['step'] ?? 1 }}"
+                                    class="dc-control-slider"
+                                    wire:model.live="controlValues.{{ $control['key'] }}"
+                                />
+                                <div class="dc-control-meta">
+                                    <span>{{ $control['min'] ?? '—' }} to {{ $control['max'] ?? '—' }}</span>
+                                    <span>{{ data_get($this->controlValues, $control['key']) }}</span>
+                                </div>
+                            @elseif($control['widget'] === 'toggle')
+                                <input
+                                    type="checkbox"
+                                    class="dc-control-toggle"
+                                    wire:model.live="controlValues.{{ $control['key'] }}"
+                                />
+                            @elseif($control['widget'] === 'select')
+                                <select class="dc-control-select" wire:model.live="controlValues.{{ $control['key'] }}">
+                                    @foreach($control['options'] as $optionValue => $optionLabel)
+                                        <option value="{{ $optionValue }}">{{ $optionLabel }}</option>
+                                    @endforeach
+                                </select>
+                            @elseif($control['widget'] === 'button')
+                                <x-filament::button
+                                    size="sm"
+                                    color="warning"
+                                    wire:click="sendButtonCommand('{{ $control['key'] }}')"
+                                >
+                                    Trigger
+                                </x-filament::button>
+                            @elseif($control['widget'] === 'color')
+                                <input
+                                    type="color"
+                                    class="dc-control-input"
+                                    wire:model.live="controlValues.{{ $control['key'] }}"
+                                />
+                            @elseif($control['widget'] === 'json')
+                                <textarea
+                                    class="dc-control-textarea"
+                                    rows="4"
+                                    wire:model.blur="controlValues.{{ $control['key'] }}"
+                                ></textarea>
+                            @else
+                                <input
+                                    type="{{ in_array($control['widget'], ['number'], true) ? 'number' : 'text' }}"
+                                    class="dc-control-input"
+                                    @if($control['widget'] === 'number')
+                                        step="{{ $control['step'] ?? 1 }}"
+                                        @if($control['min'] !== null) min="{{ $control['min'] }}" @endif
+                                        @if($control['max'] !== null) max="{{ $control['max'] }}" @endif
+                                    @endif
+                                    wire:model.live="controlValues.{{ $control['key'] }}"
+                                />
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            @endif
 
             <x-filament::button wire:click="sendCommand" icon="heroicon-o-paper-airplane" style="margin-top: 1rem;">
                 Send Command
@@ -188,7 +337,7 @@
                     </x-filament::button>
                 </div>
             </x-slot>
-            <x-slot name="description">Real-time events via WebSocket. Start the mock device, then send a command.</x-slot>
+            <x-slot name="description">Real-time command/state lifecycle from Reverb.</x-slot>
 
             <div class="dc-log">
                 <div class="dc-log-header">
@@ -198,12 +347,12 @@
                 </div>
                 <div class="dc-log-body" x-ref="eventLog">
                     <template x-if="events.length === 0">
-                        <div class="dc-empty">Waiting for events&hellip; Send a command or start the mock device.</div>
+                        <div class="dc-empty">Waiting for events... Send a command or start the mock device.</div>
                     </template>
                     <template x-for="(event, index) in events" :key="index">
                         <div>
                             <template x-if="event.type === 'cycle-separator'">
-                                <div class="dc-separator">&mdash; cycle complete &mdash;</div>
+                                <div class="dc-separator">cycle complete</div>
                             </template>
                             <template x-if="event.type !== 'cycle-separator'">
                                 <div class="dc-log-row">
@@ -219,24 +368,24 @@
         </x-filament::section>
 
         <x-filament::section>
-            <x-slot name="heading">
-                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                    <span class="dc-state-dot" :class="deviceState ? 'dc-state-dot-active' : 'dc-state-dot-idle'"></span>
-                    <span>Device State</span>
-                </div>
-            </x-slot>
-            <x-slot name="description">Last known state from the device.</x-slot>
+            <x-slot name="heading">Device States (Per Topic)</x-slot>
+            <x-slot name="description">Last known state payloads keyed by publish topic.</x-slot>
 
-            <template x-if="!deviceState">
+            <template x-if="Object.keys(topicStates).length === 0">
                 <div class="dc-state-empty">No state received yet.</div>
             </template>
-            <template x-if="deviceState">
-                <div>
-                    <div class="dc-state-json" x-text="JSON.stringify(deviceState, null, 2)"></div>
-                    <div class="dc-state-meta">
-                        <span x-show="deviceStateTopic">Topic: <span x-text="deviceStateTopic"></span></span>
-                        <span x-show="deviceStateTime"> &middot; <span x-text="deviceStateTime"></span></span>
-                    </div>
+
+            <template x-if="Object.keys(topicStates).length > 0">
+                <div class="dc-state-list">
+                    <template x-for="(state, topic) in topicStates" :key="topic">
+                        <div class="dc-state-card">
+                            <div class="dc-state-header" x-text="topic"></div>
+                            <div class="dc-state-json" x-text="JSON.stringify(state.payload, null, 2)"></div>
+                            <div class="dc-state-meta">
+                                Updated <span x-text="formatTime(state.stored_at)"></span>
+                            </div>
+                        </div>
+                    </template>
                 </div>
             </template>
         </x-filament::section>
@@ -247,13 +396,24 @@
     @push('scripts')
         <script>
             function deviceControlStream() {
-                const initialState = @js($this->initialDeviceState);
+                const initialStates = @js($this->initialDeviceStates);
+
+                const topicStates = {};
+
+                if (Array.isArray(initialStates)) {
+                    initialStates.forEach((state) => {
+                        if (state?.topic) {
+                            topicStates[state.topic] = {
+                                payload: state.payload ?? {},
+                                stored_at: state.stored_at ?? new Date().toISOString(),
+                            };
+                        }
+                    });
+                }
 
                 return {
                     events: [],
-                    deviceState: initialState?.payload ?? null,
-                    deviceStateTopic: initialState?.topic ?? null,
-                    deviceStateTime: initialState?.stored_at ? new Date(initialState.stored_at).toLocaleTimeString() : null,
+                    topicStates,
 
                     init() {
                         const deviceUuid = @js($this->deviceUuid);
@@ -274,14 +434,27 @@
                                         `Log #${payload.data.command_log_id} | NATS: ${payload.data.nats_subject} | ${payload.data.sent_at}`
                                     );
                                     break;
+                                case 'command.completed':
+                                    this.addEvent('command.completed', 'Completed',
+                                        `Log #${payload.data.command_log_id} | Topic: ${payload.data.topic} | Completed: ${payload.data.completed_at}`
+                                    );
+                                    this.addSeparator();
+                                    break;
+                                case 'command.timeout':
+                                    this.addEvent('command.timeout', 'Timeout',
+                                        `Log #${payload.data.command_log_id} | ${payload.data.error_message ?? 'Timed out'}`
+                                    );
+                                    break;
                                 case 'device.state.received':
                                     this.addEvent('device.state.received', 'Received',
                                         `Topic: ${payload.data.topic} | Payload: ${JSON.stringify(payload.data.payload)} | ${payload.data.received_at}`
                                     );
-                                    this.deviceState = payload.data.payload;
-                                    this.deviceStateTopic = payload.data.topic;
-                                    this.deviceStateTime = new Date().toLocaleTimeString();
-                                    this.addSeparator();
+
+                                    this.topicStates[payload.data.topic] = {
+                                        payload: payload.data.payload ?? {},
+                                        stored_at: payload.data.received_at ?? new Date().toISOString(),
+                                    };
+
                                     break;
                                 case 'info':
                                     this.addEvent('info', 'Info', payload.data?.message ?? 'WebSocket connected.');
@@ -334,7 +507,7 @@
 
                         window.__deviceControlChannel = window.__deviceControlPusher.subscribe('device-control.' + deviceUuid);
 
-                        ['command.dispatched', 'command.sent', 'device.state.received'].forEach((evt) => {
+                        ['command.dispatched', 'command.sent', 'command.completed', 'command.timeout', 'device.state.received'].forEach((evt) => {
                             window.__deviceControlChannel.bind(evt, (data) => {
                                 window.dispatchEvent(new CustomEvent('device-control-event', {
                                     detail: { type: evt, deviceUuid, data },
@@ -359,6 +532,18 @@
                                 this.$refs.eventLog.scrollTop = this.$refs.eventLog.scrollHeight;
                             }
                         });
+                    },
+
+                    formatTime(isoString) {
+                        if (!isoString) {
+                            return '—';
+                        }
+
+                        try {
+                            return new Date(isoString).toLocaleTimeString();
+                        } catch (e) {
+                            return isoString;
+                        }
                     },
                 };
             }

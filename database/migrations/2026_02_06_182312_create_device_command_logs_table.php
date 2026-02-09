@@ -15,8 +15,13 @@ return new class extends Migration
             $table->id();
             $table->foreignId('device_id')->constrained()->cascadeOnDelete();
             $table->foreignId('schema_version_topic_id')->constrained('schema_version_topics')->restrictOnDelete();
+            $table->foreignId('response_schema_version_topic_id')
+                ->nullable()
+                ->constrained('schema_version_topics')
+                ->nullOnDelete();
             $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
             $table->jsonb('command_payload');
+            $table->uuid('correlation_id')->nullable();
             $table->string('status', 50);
             $table->jsonb('response_payload')->nullable();
             $table->text('error_message')->nullable();
@@ -27,6 +32,7 @@ return new class extends Migration
 
             $table->index('status');
             $table->index('created_at');
+            $table->index('correlation_id', 'device_command_logs_correlation_id_index');
         });
     }
 

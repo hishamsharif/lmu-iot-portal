@@ -21,7 +21,6 @@ return new class extends Migration
             $table->string('external_id')->nullable();
             $table->jsonb('metadata')->nullable();
             $table->boolean('is_active')->default(true);
-            $table->boolean('is_simulated')->default(false);
             $table->string('connection_state', 50)->nullable();
             $table->timestamp('last_seen_at')->nullable();
             $table->timestamps();

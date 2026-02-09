@@ -91,3 +91,23 @@ it('can delete a device type', function (): void {
 
     $this->assertModelMissing($deviceType);
 });
+
+it('can replicate a device type with a generated scoped key', function (): void {
+    $deviceType = DeviceType::factory()->global()->create([
+        'key' => 'smart_light',
+        'name' => 'Smart Light',
+    ]);
+
+    livewire(ListDeviceTypes::class)
+        ->callTableAction('replicate', $deviceType);
+
+    $replica = DeviceType::query()
+        ->where('id', '!=', $deviceType->id)
+        ->latest('id')
+        ->first();
+
+    expect($replica)->not->toBeNull()
+        ->and($replica?->key)->toStartWith('smart_light_copy')
+        ->and($replica?->name)->toBe('Smart Light Copy')
+        ->and($replica?->organization_id)->toBeNull();
+});

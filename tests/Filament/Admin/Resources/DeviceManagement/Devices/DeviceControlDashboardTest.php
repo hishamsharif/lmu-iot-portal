@@ -25,7 +25,9 @@ uses(RefreshDatabase::class);
 
 function createTestDeviceForDashboard(): Device
 {
-    $schemaVersion = DeviceSchemaVersion::factory()->create();
+    $schemaVersion = DeviceSchemaVersion::factory()->create([
+        'firmware_template' => 'const char* DEVICE_ID = "{{DEVICE_ID}}";',
+    ]);
 
     $subscribeTopic = SchemaVersionTopic::factory()->subscribe()->create([
         'device_schema_version_id' => $schemaVersion->id,
@@ -100,17 +102,23 @@ function bindFakeDeviceStateStoreForDashboard(?array $returnState = null): void
 {
     $fakeStore = new class($returnState) implements NatsDeviceStateStore
     {
-        /** @var array<string, array{topic: string, payload: array<string, mixed>, stored_at: string}> */
-        public array $stored = [];
+        /** @var array<string, array<string, array{topic: string, payload: array<string, mixed>, stored_at: string}>> */
+        public array $storedByDevice = [];
 
         /**
          * @param  array{topic: string, payload: array<string, mixed>, stored_at: string}|null  $returnState
          */
-        public function __construct(private ?array $returnState) {}
+        public function __construct(private ?array $returnState)
+        {
+            if ($returnState !== null) {
+                $topic = $returnState['topic'] ?? 'unknown/topic';
+                $this->storedByDevice['default'][$topic] = $returnState;
+            }
+        }
 
         public function store(string $deviceUuid, string $topic, array $payload, string $host = '127.0.0.1', int $port = 4223): void
         {
-            $this->stored[$deviceUuid] = [
+            $this->storedByDevice[$deviceUuid][$topic] = [
                 'topic' => $topic,
                 'payload' => $payload,
                 'stored_at' => now()->toIso8601String(),
@@ -120,6 +128,24 @@ function bindFakeDeviceStateStoreForDashboard(?array $returnState = null): void
         public function getLastState(string $deviceUuid, string $host = '127.0.0.1', int $port = 4223): ?array
         {
             return $this->returnState;
+        }
+
+        public function getAllStates(string $deviceUuid, string $host = '127.0.0.1', int $port = 4223): array
+        {
+            if ($this->returnState !== null) {
+                return [$this->returnState];
+            }
+
+            return array_values($this->storedByDevice[$deviceUuid] ?? []);
+        }
+
+        public function getStateByTopic(string $deviceUuid, string $topic, string $host = '127.0.0.1', int $port = 4223): ?array
+        {
+            if ($this->returnState !== null && ($this->returnState['topic'] ?? null) === $topic) {
+                return $this->returnState;
+            }
+
+            return $this->storedByDevice[$deviceUuid][$topic] ?? null;
         }
     };
 
@@ -153,6 +179,26 @@ it('shows subscribe topic options', function (): void {
         ->assertSee('Control (control)');
 });
 
+it('shows firmware viewer action on the control dashboard page', function (): void {
+    $device = createTestDeviceForDashboard();
+
+    livewire(DeviceControlDashboard::class, ['record' => $device->id])
+        ->assertActionExists('viewFirmware');
+});
+
+it('can open firmware modal from control dashboard and see rendered firmware', function (): void {
+    $device = createTestDeviceForDashboard();
+
+    livewire(DeviceControlDashboard::class, ['record' => $device->id])
+        ->mountAction('viewFirmware')
+        ->assertActionMounted('viewFirmware')
+        ->assertActionDataSet(function (array $data): bool {
+            $firmware = $data['firmware'] ?? null;
+
+            return is_string($firmware) && str_contains($firmware, 'const char* DEVICE_ID = "pump-42";');
+        });
+});
+
 it('loads default payload JSON for the selected topic', function (): void {
     $device = createTestDeviceForDashboard();
 
@@ -171,6 +217,7 @@ it('sends a command via the dispatcher and creates a log', function (): void {
 
     livewire(DeviceControlDashboard::class, ['record' => $device->id])
         ->set('selectedTopicId', (string) $topic->id)
+        ->set('useAdvancedJson', true)
         ->set('commandPayloadJson', json_encode(['power' => 'on']))
         ->call('sendCommand')
         ->assertNotified('Command sent');
@@ -203,6 +250,7 @@ it('validates invalid JSON before sending', function (): void {
 
     livewire(DeviceControlDashboard::class, ['record' => $device->id])
         ->set('selectedTopicId', (string) $topic->id)
+        ->set('useAdvancedJson', true)
         ->set('commandPayloadJson', 'not-valid-json')
         ->call('sendCommand')
         ->assertNotified('Invalid JSON');
@@ -278,6 +326,16 @@ it('handles NATS failure gracefully on mount', function (): void {
         {
             throw new \RuntimeException('NATS connection refused');
         }
+
+        public function getAllStates(string $deviceUuid, string $host = '127.0.0.1', int $port = 4223): array
+        {
+            throw new \RuntimeException('NATS connection refused');
+        }
+
+        public function getStateByTopic(string $deviceUuid, string $topic, string $host = '127.0.0.1', int $port = 4223): ?array
+        {
+            throw new \RuntimeException('NATS connection refused');
+        }
     };
 
     app()->instance(NatsDeviceStateStore::class, $failingStore);
@@ -286,4 +344,50 @@ it('handles NATS failure gracefully on mount', function (): void {
 
     expect($component->get('initialDeviceState'))->toBeNull();
     $component->assertSuccessful();
+});
+
+it('renders color picker controls when widget is configured as color', function (): void {
+    $schemaVersion = DeviceSchemaVersion::factory()->create();
+
+    $subscribeTopic = SchemaVersionTopic::factory()->subscribe()->create([
+        'device_schema_version_id' => $schemaVersion->id,
+        'key' => 'control',
+        'label' => 'Control',
+        'suffix' => 'control',
+    ]);
+
+    ParameterDefinition::factory()->create([
+        'schema_version_topic_id' => $subscribeTopic->id,
+        'key' => 'color_hex',
+        'label' => 'Color',
+        'json_path' => 'color_hex',
+        'type' => ParameterDataType::String,
+        'default_value' => '#ff0000',
+        'validation_rules' => ['regex' => '/^#([A-Fa-f0-9]{6})$/'],
+        'control_ui' => ['widget' => 'color'],
+        'required' => true,
+        'sequence' => 1,
+        'is_active' => true,
+    ]);
+
+    $deviceType = DeviceType::factory()->mqtt()->create([
+        'protocol_config' => [
+            'broker_host' => 'localhost',
+            'broker_port' => 1883,
+            'username' => null,
+            'password' => null,
+            'use_tls' => false,
+            'base_topic' => 'devices',
+        ],
+    ]);
+
+    $device = Device::factory()->create([
+        'device_type_id' => $deviceType->id,
+        'device_schema_version_id' => $schemaVersion->id,
+    ]);
+
+    $component = livewire(DeviceControlDashboard::class, ['record' => $device->id]);
+
+    expect($component->get('controlSchema.0.widget'))->toBe('color')
+        ->and($component->get('controlValues.color_hex'))->toBe('#ff0000');
 });

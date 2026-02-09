@@ -18,6 +18,7 @@ return new class extends Migration
             $table->unsignedInteger('version');
             $table->string('status', 50)->default('draft');
             $table->text('notes')->nullable();
+            $table->longText('firmware_template')->nullable();
             $table->timestamps();
 
             $table->unique(['device_schema_id', 'version'], 'device_schema_versions_schema_version_unique');

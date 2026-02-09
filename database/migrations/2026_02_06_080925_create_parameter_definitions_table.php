@@ -22,6 +22,7 @@ return new class extends Migration
             $table->boolean('required')->default(false);
             $table->boolean('is_critical')->default(false);
             $table->jsonb('validation_rules')->nullable();
+            $table->jsonb('control_ui')->nullable();
             $table->string('validation_error_code', 100)->nullable();
             $table->jsonb('mutation_expression')->nullable();
             $table->unsignedInteger('sequence')->default(0);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Admin\Resources\DeviceManagement\DeviceTypes\Tables;
 
 use App\Domain\DeviceManagement\Enums\ProtocolType;
+use App\Domain\DeviceManagement\Models\DeviceType;
 use Filament\Actions;
 use Filament\Support\Colors\Color;
 use Filament\Support\Icons\Heroicon;
@@ -12,6 +13,7 @@ use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\Str;
 
 class DeviceTypesTable
 {
@@ -63,6 +65,29 @@ class DeviceTypesTable
                     ->toggleable(isToggledHiddenByDefault: true)
                     ->placeholder('—'),
 
+                TextColumn::make('schemas_count')
+                    ->label('Schemas')
+                    ->counts('schemas')
+                    ->sortable(),
+
+                IconColumn::make('is_onboarding_ready')
+                    ->label('Ready')
+                    ->boolean()
+                    ->state(fn (DeviceType $record): bool => $record->schemas()
+                        ->whereHas('versions', fn ($query) => $query->where('status', 'active'))
+                        ->exists()
+                    )
+                    ->trueIcon(Heroicon::OutlinedCheckCircle)
+                    ->falseIcon(Heroicon::OutlinedExclamationTriangle)
+                    ->trueColor(Color::Green)
+                    ->falseColor(Color::Amber)
+                    ->tooltip(fn (DeviceType $record): string => $record->schemas()
+                        ->whereHas('versions', fn ($query) => $query->where('status', 'active'))
+                        ->exists()
+                            ? 'Has at least one active schema version'
+                            : 'Needs an active schema version before device onboarding'
+                    ),
+
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -97,6 +122,12 @@ class DeviceTypesTable
             ->recordActions([
                 Actions\ViewAction::make(),
                 Actions\EditAction::make(),
+                Actions\ReplicateAction::make()
+                    ->excludeAttributes(['schemas_count', 'created_at', 'updated_at'])
+                    ->beforeReplicaSaved(function (DeviceType $record, DeviceType $replica): void {
+                        $replica->key = self::generateReplicaKey($record);
+                        $replica->name = self::generateReplicaName($record);
+                    }),
                 Actions\DeleteAction::make(),
             ])
             ->toolbarActions([
@@ -105,5 +136,38 @@ class DeviceTypesTable
                 ]),
             ])
             ->defaultSort('name');
+    }
+
+    private static function generateReplicaKey(DeviceType $record): string
+    {
+        $base = Str::of($record->key)->lower()->append('_copy')->value();
+        $candidate = Str::limit($base, 100, '');
+        $counter = 2;
+
+        while (self::replicaKeyExists($record, $candidate)) {
+            $suffix = "_{$counter}";
+            $prefixLength = 100 - strlen($suffix);
+            $candidate = Str::of($base)->substr(0, $prefixLength)->append($suffix)->value();
+            $counter++;
+        }
+
+        return $candidate;
+    }
+
+    private static function replicaKeyExists(DeviceType $record, string $key): bool
+    {
+        return DeviceType::query()
+            ->where('key', $key)
+            ->when(
+                $record->organization_id === null,
+                fn ($query) => $query->whereNull('organization_id'),
+                fn ($query) => $query->where('organization_id', $record->organization_id),
+            )
+            ->exists();
+    }
+
+    private static function generateReplicaName(DeviceType $record): string
+    {
+        return Str::limit("{$record->name} Copy", 255, '');
     }
 }

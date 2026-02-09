@@ -38,6 +38,7 @@ class ParameterDefinitionFactory extends Factory
                 'min' => -40,
                 'max' => 85,
             ],
+            'control_ui' => null,
             'validation_error_code' => $this->faker->optional()->lexify('VAL_????'),
             'mutation_expression' => [
                 '*' => [
@@ -63,6 +64,7 @@ class ParameterDefinitionFactory extends Factory
             'validation_error_code' => null,
             'mutation_expression' => null,
             'default_value' => 0,
+            'control_ui' => null,
         ]);
     }
 }

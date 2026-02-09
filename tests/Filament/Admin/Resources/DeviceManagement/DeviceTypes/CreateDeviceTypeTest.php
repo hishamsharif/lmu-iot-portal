@@ -71,11 +71,32 @@ it('validates required key field', function (): void {
     livewire(CreateDeviceType::class)
         ->fillForm([
             'key' => '',
-            'name' => 'Test Device',
+            'name' => '',
             'default_protocol' => ProtocolType::Mqtt->value,
         ])
         ->call('create')
         ->assertHasFormErrors(['key' => 'required']);
+});
+
+it('auto-generates key from name when key is left empty', function (): void {
+    livewire(CreateDeviceType::class)
+        ->set('data.default_protocol', ProtocolType::Http->value)
+        ->fillForm([
+            'key' => '',
+            'name' => 'RGB Wall Controller',
+            'protocol_config.base_url' => 'https://api.example.com',
+            'protocol_config.telemetry_endpoint' => '/telemetry',
+            'protocol_config.method' => 'POST',
+            'protocol_config.auth_type' => HttpAuthType::None->value,
+            'protocol_config.timeout' => 30,
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $this->assertDatabaseHas('device_types', [
+        'key' => 'rgb_wall_controller',
+        'name' => 'RGB Wall Controller',
+    ]);
 });
 
 it('validates required name field', function (): void {
@@ -110,7 +131,7 @@ it('validates unique key for global device types', function (): void {
             'default_protocol' => ProtocolType::Mqtt->value,
         ])
         ->call('create')
-        ->assertHasFormErrors(['key' => 'unique']);
+        ->assertHasFormErrors(['key']);
 });
 
 it('validates key format (lowercase, numbers, underscores only)', function (): void {

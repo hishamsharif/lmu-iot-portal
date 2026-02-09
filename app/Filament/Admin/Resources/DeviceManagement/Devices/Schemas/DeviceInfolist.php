@@ -63,10 +63,6 @@ class DeviceInfolist
                             ->label('Active')
                             ->boolean(),
 
-                        IconEntry::make('is_simulated')
-                            ->label('Simulated')
-                            ->boolean(),
-
                         TextEntry::make('connection_state')
                             ->label('Connection State')
                             ->badge()

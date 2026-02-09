@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 use App\Domain\DeviceControl\Enums\CommandStatus;
 use App\Domain\DeviceControl\Models\DeviceCommandLog;
+use App\Events\CommandCompleted;
 use App\Events\CommandDispatched;
 use App\Events\CommandSent;
+use App\Events\CommandTimedOut;
 use App\Events\DeviceStateReceived;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -74,4 +76,39 @@ it('DeviceStateReceived broadcasts on device-control channel', function (): void
         ->and($data)->toHaveKey('device_uuid', 'abc-123')
         ->and($data)->toHaveKey('payload', ['power' => 'on'])
         ->and($data)->toHaveKey('command_log_id', 1);
+});
+
+it('CommandCompleted broadcasts completion payload', function (): void {
+    $commandLog = DeviceCommandLog::factory()->completed()->create();
+    $commandLog->load('device', 'topic');
+
+    $event = new CommandCompleted($commandLog);
+
+    expect($event->broadcastOn()[0]->name)->toBe("device-control.{$commandLog->device->uuid}")
+        ->and($event->broadcastAs())->toBe('command.completed');
+
+    $data = $event->broadcastWith();
+
+    expect($data)->toHaveKey('command_log_id', $commandLog->id)
+        ->and($data)->toHaveKey('status', CommandStatus::Completed->value)
+        ->and($data)->toHaveKey('completed_at');
+});
+
+it('CommandTimedOut broadcasts timeout payload', function (): void {
+    $commandLog = DeviceCommandLog::factory()->sent()->create([
+        'status' => CommandStatus::Timeout,
+        'error_message' => 'Command timed out waiting for device feedback.',
+    ]);
+    $commandLog->load('device', 'topic');
+
+    $event = new CommandTimedOut($commandLog);
+
+    expect($event->broadcastOn()[0]->name)->toBe("device-control.{$commandLog->device->uuid}")
+        ->and($event->broadcastAs())->toBe('command.timeout');
+
+    $data = $event->broadcastWith();
+
+    expect($data)->toHaveKey('command_log_id', $commandLog->id)
+        ->and($data)->toHaveKey('status', CommandStatus::Timeout->value)
+        ->and($data)->toHaveKey('error_message', 'Command timed out waiting for device feedback.');
 });

@@ -10,7 +10,7 @@ use Filament\Support\Icons\Heroicon;
 
 class TelemetryViewer extends Page
 {
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedChartBar;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBugAnt;
 
     protected static ?int $navigationSort = 6;
 
@@ -18,7 +18,7 @@ class TelemetryViewer extends Page
 
     public static function getNavigationGroup(): ?string
     {
-        return __('IoT Management');
+        return __('Debugging');
     }
 
     public static function getNavigationLabel(): string

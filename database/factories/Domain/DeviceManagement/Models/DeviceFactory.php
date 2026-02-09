@@ -32,7 +32,6 @@ class DeviceFactory extends Factory
             'uuid' => (string) Str::uuid(),
             'name' => $this->faker->words(2, true),
             'external_id' => $this->faker->optional()->bothify('EXT-####'),
-            'is_simulated' => $this->faker->boolean(10),
             'connection_state' => $this->faker->randomElement(['online', 'offline', 'unknown']),
             'last_seen_at' => $this->faker->optional()->dateTimeBetween('-7 days'),
         ];

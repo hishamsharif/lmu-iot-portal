@@ -45,8 +45,10 @@ namespace App\Domain\DeviceControl\Models{
  * @property int $id
  * @property int $device_id
  * @property int $schema_version_topic_id
+ * @property int|null $response_schema_version_topic_id
  * @property int|null $user_id
  * @property array<array-key, mixed> $command_payload
+ * @property string|null $correlation_id
  * @property \App\Domain\DeviceControl\Enums\CommandStatus $status
  * @property array<array-key, mixed>|null $response_payload
  * @property string|null $error_message
@@ -56,6 +58,7 @@ namespace App\Domain\DeviceControl\Models{
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property-read \App\Domain\DeviceManagement\Models\Device $device
+ * @property-read \App\Domain\DeviceSchema\Models\SchemaVersionTopic|null $responseTopic
  * @property-read \App\Domain\DeviceSchema\Models\SchemaVersionTopic $topic
  * @property-read \App\Domain\Shared\Models\User|null $user
  * @method static \Database\Factories\Domain\DeviceControl\Models\DeviceCommandLogFactory factory($count = null, $state = [])
@@ -65,11 +68,13 @@ namespace App\Domain\DeviceControl\Models{
  * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceCommandLog whereAcknowledgedAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceCommandLog whereCommandPayload($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceCommandLog whereCompletedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceCommandLog whereCorrelationId($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceCommandLog whereCreatedAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceCommandLog whereDeviceId($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceCommandLog whereErrorMessage($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceCommandLog whereId($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceCommandLog whereResponsePayload($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceCommandLog whereResponseSchemaVersionTopicId($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceCommandLog whereSchemaVersionTopicId($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceCommandLog whereSentAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceCommandLog whereStatus($value)
@@ -102,6 +107,34 @@ namespace App\Domain\DeviceControl\Models{
 	class DeviceDesiredState extends \Eloquent {}
 }
 
+namespace App\Domain\DeviceControl\Models{
+/**
+ * @property int $id
+ * @property int $device_id
+ * @property int $schema_version_topic_id
+ * @property array<array-key, mixed> $desired_payload
+ * @property string|null $correlation_id
+ * @property \Illuminate\Support\Carbon|null $reconciled_at
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property-read \App\Domain\DeviceManagement\Models\Device $device
+ * @property-read \App\Domain\DeviceSchema\Models\SchemaVersionTopic $topic
+ * @method static \Database\Factories\Domain\DeviceControl\Models\DeviceDesiredTopicStateFactory factory($count = null, $state = [])
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceDesiredTopicState newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceDesiredTopicState newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceDesiredTopicState query()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceDesiredTopicState whereCorrelationId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceDesiredTopicState whereCreatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceDesiredTopicState whereDesiredPayload($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceDesiredTopicState whereDeviceId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceDesiredTopicState whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceDesiredTopicState whereReconciledAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceDesiredTopicState whereSchemaVersionTopicId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceDesiredTopicState whereUpdatedAt($value)
+ */
+	class DeviceDesiredTopicState extends \Eloquent {}
+}
+
 namespace App\Domain\DeviceManagement\Models{
 /**
  * @property int $id
@@ -113,7 +146,6 @@ namespace App\Domain\DeviceManagement\Models{
  * @property string|null $external_id
  * @property array<array-key, mixed>|null $metadata
  * @property bool $is_active
- * @property bool $is_simulated
  * @property string|null $connection_state
  * @property \Illuminate\Support\Carbon|null $last_seen_at
  * @property \Illuminate\Support\Carbon|null $created_at
@@ -122,6 +154,8 @@ namespace App\Domain\DeviceManagement\Models{
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Domain\DeviceControl\Models\DeviceCommandLog> $commandLogs
  * @property-read int|null $command_logs_count
  * @property-read \App\Domain\DeviceControl\Models\DeviceDesiredState|null $desiredState
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Domain\DeviceControl\Models\DeviceDesiredTopicState> $desiredTopicStates
+ * @property-read int|null $desired_topic_states_count
  * @property-read \App\Domain\DeviceManagement\Models\DeviceType $deviceType
  * @property-read \App\Domain\Shared\Models\Organization $organization
  * @property-read \App\Domain\DeviceSchema\Models\DeviceSchemaVersion $schemaVersion
@@ -140,7 +174,6 @@ namespace App\Domain\DeviceManagement\Models{
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Device whereExternalId($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Device whereId($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Device whereIsActive($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Device whereIsSimulated($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Device whereLastSeenAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Device whereMetadata($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Device whereName($value)
@@ -252,6 +285,7 @@ namespace App\Domain\DeviceSchema\Models{
  * @property int $version
  * @property string $status
  * @property string|null $notes
+ * @property string|null $firmware_template
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Domain\DeviceSchema\Models\DerivedParameterDefinition> $derivedParameters
@@ -261,6 +295,8 @@ namespace App\Domain\DeviceSchema\Models{
  * @property-read \App\Domain\DeviceSchema\Models\DeviceSchema $schema
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Domain\Telemetry\Models\DeviceTelemetryLog> $telemetryLogs
  * @property-read int|null $telemetry_logs_count
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Domain\DeviceSchema\Models\SchemaVersionTopicLink> $topicLinks
+ * @property-read int|null $topic_links_count
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Domain\DeviceSchema\Models\SchemaVersionTopic> $topics
  * @property-read int|null $topics_count
  * @method static \Database\Factories\Domain\DeviceSchema\Models\DeviceSchemaVersionFactory factory($count = null, $state = [])
@@ -269,6 +305,7 @@ namespace App\Domain\DeviceSchema\Models{
  * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceSchemaVersion query()
  * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceSchemaVersion whereCreatedAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceSchemaVersion whereDeviceSchemaId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceSchemaVersion whereFirmwareTemplate($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceSchemaVersion whereId($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceSchemaVersion whereNotes($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|DeviceSchemaVersion whereStatus($value)
@@ -290,6 +327,7 @@ namespace App\Domain\DeviceSchema\Models{
  * @property bool $required
  * @property bool $is_critical
  * @property array<array-key, mixed>|null $validation_rules
+ * @property array<array-key, mixed>|null $control_ui
  * @property string|null $validation_error_code
  * @property array<array-key, mixed>|null $mutation_expression
  * @property int $sequence
@@ -302,6 +340,7 @@ namespace App\Domain\DeviceSchema\Models{
  * @method static \Illuminate\Database\Eloquent\Builder<static>|ParameterDefinition newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder<static>|ParameterDefinition newQuery()
  * @method static \Illuminate\Database\Eloquent\Builder<static>|ParameterDefinition query()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|ParameterDefinition whereControlUi($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|ParameterDefinition whereCreatedAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|ParameterDefinition whereDefaultValue($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|ParameterDefinition whereId($value)
@@ -330,6 +369,7 @@ namespace App\Domain\DeviceSchema\Models{
  * @property int $device_schema_version_id
  * @property string $key
  * @property string $label
+ * @property \App\Domain\DeviceSchema\Enums\TopicPurpose|null $purpose
  * @property string $suffix
  * @property string|null $description
  * @property int $qos
@@ -337,11 +377,21 @@ namespace App\Domain\DeviceSchema\Models{
  * @property int $sequence
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, SchemaVersionTopic> $ackFeedbackTopics
+ * @property-read int|null $ack_feedback_topics_count
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Domain\DeviceControl\Models\DeviceCommandLog> $commandLogs
  * @property-read int|null $command_logs_count
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Domain\DeviceSchema\Models\SchemaVersionTopicLink> $incomingLinks
+ * @property-read int|null $incoming_links_count
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, SchemaVersionTopic> $linkedFeedbackTopics
+ * @property-read int|null $linked_feedback_topics_count
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Domain\DeviceSchema\Models\SchemaVersionTopicLink> $outgoingLinks
+ * @property-read int|null $outgoing_links_count
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Domain\DeviceSchema\Models\ParameterDefinition> $parameters
  * @property-read int|null $parameters_count
  * @property-read \App\Domain\DeviceSchema\Models\DeviceSchemaVersion $schemaVersion
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, SchemaVersionTopic> $stateFeedbackTopics
+ * @property-read int|null $state_feedback_topics_count
  * @method static \Database\Factories\Domain\DeviceSchema\Models\SchemaVersionTopicFactory factory($count = null, $state = [])
  * @method static \Illuminate\Database\Eloquent\Builder<static>|SchemaVersionTopic newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder<static>|SchemaVersionTopic newQuery()
@@ -353,6 +403,7 @@ namespace App\Domain\DeviceSchema\Models{
  * @method static \Illuminate\Database\Eloquent\Builder<static>|SchemaVersionTopic whereId($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|SchemaVersionTopic whereKey($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|SchemaVersionTopic whereLabel($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SchemaVersionTopic wherePurpose($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|SchemaVersionTopic whereQos($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|SchemaVersionTopic whereRetain($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|SchemaVersionTopic whereSequence($value)
@@ -360,6 +411,30 @@ namespace App\Domain\DeviceSchema\Models{
  * @method static \Illuminate\Database\Eloquent\Builder<static>|SchemaVersionTopic whereUpdatedAt($value)
  */
 	class SchemaVersionTopic extends \Eloquent {}
+}
+
+namespace App\Domain\DeviceSchema\Models{
+/**
+ * @property int $id
+ * @property int $from_schema_version_topic_id
+ * @property int $to_schema_version_topic_id
+ * @property \App\Domain\DeviceSchema\Enums\TopicLinkType $link_type
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property-read \App\Domain\DeviceSchema\Models\SchemaVersionTopic $fromTopic
+ * @property-read \App\Domain\DeviceSchema\Models\SchemaVersionTopic $toTopic
+ * @method static \Database\Factories\Domain\DeviceSchema\Models\SchemaVersionTopicLinkFactory factory($count = null, $state = [])
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SchemaVersionTopicLink newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SchemaVersionTopicLink newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SchemaVersionTopicLink query()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SchemaVersionTopicLink whereCreatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SchemaVersionTopicLink whereFromSchemaVersionTopicId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SchemaVersionTopicLink whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SchemaVersionTopicLink whereLinkType($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SchemaVersionTopicLink whereToSchemaVersionTopicId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SchemaVersionTopicLink whereUpdatedAt($value)
+ */
+	class SchemaVersionTopicLink extends \Eloquent {}
 }
 
 namespace App\Domain\Shared\Models{
