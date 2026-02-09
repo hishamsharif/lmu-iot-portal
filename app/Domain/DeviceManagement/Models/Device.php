@@ -53,6 +53,7 @@ class Device extends Model
             'is_active' => 'bool',
             'last_seen_at' => 'datetime',
             'metadata' => 'array',
+            'ingestion_overrides' => 'array',
         ];
     }
 

@@ -2,22 +2,25 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\Telemetry\Models;
+namespace App\Domain\DataIngestion\Models;
 
-use App\Domain\DataIngestion\Models\IngestionMessage;
+use App\Domain\DataIngestion\Enums\IngestionStatus;
 use App\Domain\DeviceManagement\Models\Device;
 use App\Domain\DeviceSchema\Models\DeviceSchemaVersion;
 use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
-use App\Domain\Telemetry\Enums\ValidationStatus;
-use Database\Factories\Domain\Telemetry\Models\DeviceTelemetryLogFactory;
+use App\Domain\Shared\Models\Organization;
+use App\Domain\Telemetry\Models\DeviceTelemetryLog;
+use Database\Factories\Domain\DataIngestion\Models\IngestionMessageFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
-class DeviceTelemetryLog extends Model
+class IngestionMessage extends Model
 {
-    /** @use HasFactory<\Database\Factories\Domain\Telemetry\Models\DeviceTelemetryLogFactory> */
+    /** @use HasFactory<\Database\Factories\Domain\DataIngestion\Models\IngestionMessageFactory> */
     use HasFactory;
 
     use HasUuids;
@@ -28,9 +31,9 @@ class DeviceTelemetryLog extends Model
 
     protected $guarded = ['id'];
 
-    protected static function newFactory(): DeviceTelemetryLogFactory
+    protected static function newFactory(): IngestionMessageFactory
     {
-        return DeviceTelemetryLogFactory::new();
+        return IngestionMessageFactory::new();
     }
 
     /**
@@ -40,14 +43,19 @@ class DeviceTelemetryLog extends Model
     {
         return [
             'raw_payload' => 'array',
-            'validation_errors' => 'array',
-            'mutated_values' => 'array',
-            'transformed_values' => 'array',
-            'validation_status' => ValidationStatus::class,
-            'processing_state' => 'string',
-            'recorded_at' => 'datetime',
+            'error_summary' => 'array',
+            'status' => IngestionStatus::class,
             'received_at' => 'datetime',
+            'processed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * @return BelongsTo<Organization, $this>
+     */
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
     }
 
     /**
@@ -75,10 +83,18 @@ class DeviceTelemetryLog extends Model
     }
 
     /**
-     * @return BelongsTo<IngestionMessage, $this>
+     * @return HasMany<IngestionStageLog, $this>
      */
-    public function ingestionMessage(): BelongsTo
+    public function stageLogs(): HasMany
     {
-        return $this->belongsTo(IngestionMessage::class, 'ingestion_message_id');
+        return $this->hasMany(IngestionStageLog::class);
+    }
+
+    /**
+     * @return HasOne<DeviceTelemetryLog, $this>
+     */
+    public function telemetryLog(): HasOne
+    {
+        return $this->hasOne(DeviceTelemetryLog::class, 'ingestion_message_id');
     }
 }

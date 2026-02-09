@@ -26,6 +26,7 @@ class DeviceSchemaVersion extends Model
     {
         return [
             'firmware_template' => 'string',
+            'ingestion_config' => 'array',
         ];
     }
 

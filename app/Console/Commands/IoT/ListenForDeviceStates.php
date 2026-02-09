@@ -9,6 +9,7 @@ use Basis\Nats\Client;
 use Basis\Nats\Configuration;
 use Basis\Nats\Message\Payload;
 use Illuminate\Console\Command;
+use JsonException;
 
 class ListenForDeviceStates extends Command
 {
@@ -46,9 +47,10 @@ class ListenForDeviceStates extends Command
                 $body = $payload->body;
                 $mqttTopic = str_replace('.', '/', $subject);
 
-                $decodedPayload = json_decode($body, true, flags: JSON_THROW_ON_ERROR);
-                if (! is_array($decodedPayload)) {
-                    $decodedPayload = [];
+                $decodedPayload = $this->decodePayload($body);
+
+                if ($decodedPayload === null) {
+                    return;
                 }
 
                 $result = $reconciler->reconcileInboundMessage(
@@ -89,5 +91,28 @@ class ListenForDeviceStates extends Command
                 sleep(1);
             }
         }
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function decodePayload(string $body): ?array
+    {
+        if (trim($body) === '') {
+            return [];
+        }
+
+        try {
+            $decoded = json_decode($body, true, flags: JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            return null;
+        }
+
+        if (! is_array($decoded)) {
+            return null;
+        }
+
+        /** @var array<string, mixed> $decoded */
+        return $decoded;
     }
 }

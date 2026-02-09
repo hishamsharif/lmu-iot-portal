@@ -2,6 +2,10 @@
 
 namespace App\Providers;
 
+use App\Domain\DataIngestion\Contracts\AnalyticsPublisher;
+use App\Domain\DataIngestion\Contracts\HotStateStore;
+use App\Domain\DataIngestion\Services\NatsAnalyticsPublisher;
+use App\Domain\DataIngestion\Services\NatsKvHotStateStore;
 use App\Domain\DeviceManagement\Publishing\Nats\BasisNatsDeviceStateStore;
 use App\Domain\DeviceManagement\Publishing\Nats\BasisNatsPublisherFactory;
 use App\Domain\DeviceManagement\Publishing\Nats\NatsDeviceStateStore;
@@ -31,6 +35,8 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(NatsPublisherFactory::class, BasisNatsPublisherFactory::class);
         $this->app->bind(NatsDeviceStateStore::class, BasisNatsDeviceStateStore::class);
+        $this->app->bind(HotStateStore::class, NatsKvHotStateStore::class);
+        $this->app->bind(AnalyticsPublisher::class, NatsAnalyticsPublisher::class);
 
         if ($this->app->environment('local')) {
             $this->app->register(\Laravel\Telescope\TelescopeServiceProvider::class);

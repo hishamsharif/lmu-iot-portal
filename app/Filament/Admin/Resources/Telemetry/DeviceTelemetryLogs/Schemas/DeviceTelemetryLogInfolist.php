@@ -37,6 +37,9 @@ class DeviceTelemetryLogInfolist
                             ->label('Validation Status')
                             ->badge()
                             ->formatStateUsing(fn (ValidationStatus|string $state): string => $state instanceof ValidationStatus ? $state->label() : (string) $state),
+                        TextEntry::make('processing_state')
+                            ->label('Processing State')
+                            ->badge(),
                         TextEntry::make('recorded_at')
                             ->dateTime()
                             ->icon(Heroicon::OutlinedClock),
@@ -50,6 +53,16 @@ class DeviceTelemetryLogInfolist
                     ->schema([
                         TextEntry::make('raw_payload')
                             ->label('Raw Payload')
+                            ->formatStateUsing(fn (mixed $state): ?string => self::formatJson($state))
+                            ->extraAttributes(['class' => 'font-mono whitespace-pre-wrap'])
+                            ->columnSpanFull(),
+                        TextEntry::make('validation_errors')
+                            ->label('Validation Errors')
+                            ->formatStateUsing(fn (mixed $state): ?string => self::formatJson($state))
+                            ->extraAttributes(['class' => 'font-mono whitespace-pre-wrap'])
+                            ->columnSpanFull(),
+                        TextEntry::make('mutated_values')
+                            ->label('Mutated Values')
                             ->formatStateUsing(fn (mixed $state): ?string => self::formatJson($state))
                             ->extraAttributes(['class' => 'font-mono whitespace-pre-wrap'])
                             ->columnSpanFull(),

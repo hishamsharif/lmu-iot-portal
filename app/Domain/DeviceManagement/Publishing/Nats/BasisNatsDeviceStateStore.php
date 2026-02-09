@@ -6,6 +6,7 @@ namespace App\Domain\DeviceManagement\Publishing\Nats;
 
 use Basis\Nats\Client;
 use Basis\Nats\Configuration;
+use Throwable;
 
 final class BasisNatsDeviceStateStore implements NatsDeviceStateStore
 {
@@ -13,19 +14,33 @@ final class BasisNatsDeviceStateStore implements NatsDeviceStateStore
 
     public function store(string $deviceUuid, string $topic, array $payload, string $host = '127.0.0.1', int $port = 4223): void
     {
-        $client = $this->createClient($host, $port);
-        $bucket = $client->getApi()->getBucket(self::BUCKET_NAME);
+        try {
+            $client = $this->createClient($host, $port);
+            $bucket = $client->getApi()->getBucket(self::BUCKET_NAME);
 
-        $document = $this->normalizeDocument($bucket->get($deviceUuid));
-        $document['topics'][$topic] = [
-            'topic' => $topic,
-            'payload' => $payload,
-            'stored_at' => now()->toIso8601String(),
-        ];
+            $document = $this->normalizeDocument($bucket->get($deviceUuid));
+            $document['topics'][$topic] = [
+                'topic' => $topic,
+                'payload' => $payload,
+                'stored_at' => now()->toIso8601String(),
+            ];
 
-        $data = json_encode($document);
+            $data = json_encode($document);
+            $bucket->put($deviceUuid, is_string($data) ? $data : '{}');
+        } catch (Throwable $exception) {
+            if ($this->isJetStreamUnavailable($exception)) {
+                logger()->warning('NATS KV hot-state write skipped: JetStream/KV unavailable.', [
+                    'bucket' => self::BUCKET_NAME,
+                    'device_uuid' => $deviceUuid,
+                    'topic' => $topic,
+                    'error' => $exception->getMessage(),
+                ]);
 
-        $bucket->put($deviceUuid, is_string($data) ? $data : '{}');
+                return;
+            }
+
+            throw $exception;
+        }
     }
 
     public function getLastState(string $deviceUuid, string $host = '127.0.0.1', int $port = 4223): ?array
@@ -37,9 +52,17 @@ final class BasisNatsDeviceStateStore implements NatsDeviceStateStore
 
     public function getAllStates(string $deviceUuid, string $host = '127.0.0.1', int $port = 4223): array
     {
-        $client = $this->createClient($host, $port);
-        $bucket = $client->getApi()->getBucket(self::BUCKET_NAME);
-        $value = $bucket->get($deviceUuid);
+        try {
+            $client = $this->createClient($host, $port);
+            $bucket = $client->getApi()->getBucket(self::BUCKET_NAME);
+            $value = $bucket->get($deviceUuid);
+        } catch (Throwable $exception) {
+            if ($this->isJetStreamUnavailable($exception)) {
+                return [];
+            }
+
+            throw $exception;
+        }
 
         $document = $this->normalizeDocument($value);
         $states = array_values($document['topics']);
@@ -56,9 +79,17 @@ final class BasisNatsDeviceStateStore implements NatsDeviceStateStore
 
     public function getStateByTopic(string $deviceUuid, string $topic, string $host = '127.0.0.1', int $port = 4223): ?array
     {
-        $client = $this->createClient($host, $port);
-        $bucket = $client->getApi()->getBucket(self::BUCKET_NAME);
-        $value = $bucket->get($deviceUuid);
+        try {
+            $client = $this->createClient($host, $port);
+            $bucket = $client->getApi()->getBucket(self::BUCKET_NAME);
+            $value = $bucket->get($deviceUuid);
+        } catch (Throwable $exception) {
+            if ($this->isJetStreamUnavailable($exception)) {
+                return null;
+            }
+
+            throw $exception;
+        }
 
         $document = $this->normalizeDocument($value);
 
@@ -71,6 +102,14 @@ final class BasisNatsDeviceStateStore implements NatsDeviceStateStore
             'host' => $host,
             'port' => $port,
         ]));
+    }
+
+    private function isJetStreamUnavailable(Throwable $exception): bool
+    {
+        $message = $exception->getMessage();
+
+        return str_contains($message, 'No handler for message _REQS.')
+            || str_contains($message, 'JS not enabled');
     }
 
     /**

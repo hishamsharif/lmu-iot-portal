@@ -36,6 +36,10 @@ class DeviceTelemetryLogsTable
                     ->badge()
                     ->formatStateUsing(fn (ValidationStatus|string $state): string => $state instanceof ValidationStatus ? $state->label() : (string) $state),
 
+                TextColumn::make('processing_state')
+                    ->badge()
+                    ->sortable(),
+
                 TextColumn::make('recorded_at')
                     ->dateTime()
                     ->sortable(),
@@ -48,6 +52,14 @@ class DeviceTelemetryLogsTable
                 SelectFilter::make('validation_status')
                     ->label('Validation Status')
                     ->options(ValidationStatus::class),
+
+                SelectFilter::make('processing_state')
+                    ->options([
+                        'processed' => 'Processed',
+                        'publish_failed' => 'Publish Failed',
+                        'invalid' => 'Invalid',
+                        'inactive_skipped' => 'Inactive Skipped',
+                    ]),
 
                 Filter::make('recorded_at')
                     ->form([
