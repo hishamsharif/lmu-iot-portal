@@ -22,8 +22,8 @@ return [
     'default_raw_retention_days' => (int) env('INGESTION_DEFAULT_RAW_RETENTION_DAYS', 90),
 
     'nats' => [
-        'host' => (string) env('INGESTION_NATS_HOST', '127.0.0.1'),
-        'port' => (int) env('INGESTION_NATS_PORT', 4223),
+        'host' => (string) env('INGESTION_NATS_HOST', (string) env('IOT_NATS_HOST', '127.0.0.1')),
+        'port' => (int) env('INGESTION_NATS_PORT', (int) env('IOT_NATS_PORT', 4223)),
         'subject' => (string) env('INGESTION_NATS_SUBJECT', '>'),
         'analytics_subject_prefix' => (string) env('INGESTION_NATS_ANALYTICS_PREFIX', 'iot.v1.analytics'),
         'invalid_subject_prefix' => (string) env('INGESTION_NATS_INVALID_PREFIX', 'iot.v1.invalid'),

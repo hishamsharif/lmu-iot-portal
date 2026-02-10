@@ -1,0 +1,216 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Domain\DeviceManagement\Publishing\Mqtt;
+
+use Illuminate\Support\Facades\Log;
+use RuntimeException;
+
+/**
+ * Publishes MQTT messages using raw TCP sockets and the MQTT v3.1.1 protocol.
+ *
+ * This bypasses the native NATS PUB mechanism so that messages are stored
+ * in the NATS MQTT bridge's JetStream stream ($MQTT_msgs) and properly
+ * delivered to MQTT devices that subscribe with QoS 1.
+ */
+final class PhpMqttCommandPublisher implements MqttCommandPublisher
+{
+    private const int CONNECT_TIMEOUT_SECONDS = 5;
+
+    private const int KEEPALIVE_SECONDS = 60;
+
+    public function publish(string $mqttTopic, string $payload, string $host, int $port): void
+    {
+        Log::channel('device_control')->debug('MQTT TCP connect attempt', [
+            'host' => $host,
+            'port' => $port,
+            'topic' => $mqttTopic,
+            'payload_size' => strlen($payload),
+        ]);
+
+        $socket = @stream_socket_client(
+            "tcp://{$host}:{$port}",
+            $errorCode,
+            $errorMessage,
+            self::CONNECT_TIMEOUT_SECONDS,
+        );
+
+        if ($socket === false) {
+            Log::channel('device_control')->error('MQTT TCP connection failed', [
+                'host' => $host,
+                'port' => $port,
+                'error_code' => $errorCode,
+                'error_message' => $errorMessage,
+            ]);
+
+            throw new RuntimeException("MQTT TCP connection failed to {$host}:{$port}: {$errorMessage} ({$errorCode})");
+        }
+
+        stream_set_timeout($socket, self::CONNECT_TIMEOUT_SECONDS);
+
+        try {
+            $this->sendConnect($socket);
+            $this->readConnack($socket);
+
+            Log::channel('device_control')->debug('MQTT CONNACK received, publishing', [
+                'topic' => $mqttTopic,
+            ]);
+
+            $this->sendPublish($socket, $mqttTopic, $payload);
+            $this->readPuback($socket);
+
+            Log::channel('device_control')->info('MQTT PUBACK received — message delivered', [
+                'topic' => $mqttTopic,
+                'host' => $host,
+                'port' => $port,
+                'payload_size' => strlen($payload),
+            ]);
+
+            $this->sendDisconnect($socket);
+        } catch (\Throwable $exception) {
+            Log::channel('device_control')->error('MQTT publish protocol error', [
+                'topic' => $mqttTopic,
+                'host' => $host,
+                'port' => $port,
+                'error' => $exception->getMessage(),
+            ]);
+
+            throw $exception;
+        } finally {
+            fclose($socket);
+        }
+    }
+
+    /**
+     * @param  resource  $socket
+     */
+    private function sendConnect($socket): void
+    {
+        $clientId = 'lmu-iot-cmd-'.bin2hex(random_bytes(4));
+
+        $variableHeader = $this->encodeUtf8String('MQTT')
+            ."\x04"
+            ."\x02"
+            .pack('n', self::KEEPALIVE_SECONDS);
+
+        $packetPayload = $this->encodeUtf8String($clientId);
+
+        $this->writePacket($socket, 0x10, $variableHeader.$packetPayload);
+    }
+
+    /**
+     * @param  resource  $socket
+     */
+    private function readConnack($socket): void
+    {
+        $header = $this->readExact($socket, 2);
+        $packetType = (ord($header[0]) >> 4) & 0x0F;
+
+        if ($packetType !== 2) {
+            throw new RuntimeException("Expected CONNACK (type 2), got type {$packetType}");
+        }
+
+        $remainingLength = ord($header[1]);
+        $data = $this->readExact($socket, $remainingLength);
+        $returnCode = ord($data[1]);
+
+        if ($returnCode !== 0) {
+            throw new RuntimeException("MQTT CONNACK refused with return code {$returnCode}");
+        }
+    }
+
+    /**
+     * @param  resource  $socket
+     */
+    private function sendPublish($socket, string $topic, string $payload): void
+    {
+        $messageId = 1;
+
+        $variableHeader = $this->encodeUtf8String($topic).pack('n', $messageId);
+
+        $this->writePacket($socket, 0x32, $variableHeader.$payload);
+    }
+
+    /**
+     * @param  resource  $socket
+     */
+    private function readPuback($socket): void
+    {
+        $header = $this->readExact($socket, 2);
+        $packetType = (ord($header[0]) >> 4) & 0x0F;
+
+        if ($packetType !== 4) {
+            throw new RuntimeException("Expected PUBACK (type 4), got type {$packetType}");
+        }
+
+        $remainingLength = ord($header[1]);
+        $this->readExact($socket, $remainingLength);
+    }
+
+    /**
+     * @param  resource  $socket
+     */
+    private function sendDisconnect($socket): void
+    {
+        fwrite($socket, "\xe0\x00");
+    }
+
+    /**
+     * @param  resource  $socket
+     */
+    private function writePacket($socket, int $fixedHeaderByte, string $body): void
+    {
+        $packet = chr($fixedHeaderByte).$this->encodeRemainingLength(strlen($body)).$body;
+
+        $written = fwrite($socket, $packet);
+
+        if ($written === false || $written < strlen($packet)) {
+            throw new RuntimeException('Failed to write MQTT packet to socket');
+        }
+    }
+
+    private function encodeUtf8String(string $string): string
+    {
+        return pack('n', strlen($string)).$string;
+    }
+
+    private function encodeRemainingLength(int $length): string
+    {
+        $encoded = '';
+
+        do {
+            $byte = $length % 128;
+            $length = intdiv($length, 128);
+
+            if ($length > 0) {
+                $byte |= 0x80;
+            }
+
+            $encoded .= chr($byte);
+        } while ($length > 0);
+
+        return $encoded;
+    }
+
+    /**
+     * @param  resource  $socket
+     */
+    private function readExact($socket, int $length): string
+    {
+        $data = '';
+
+        while (strlen($data) < $length) {
+            $remaining = $length - strlen($data);
+            $chunk = fread($socket, max(1, $remaining));
+
+            if ($chunk === false || $chunk === '') {
+                throw new RuntimeException('MQTT socket read failed or connection closed');
+            }
+
+            $data .= $chunk;
+        }
+
+        return $data;
+    }
+}

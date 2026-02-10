@@ -27,12 +27,14 @@ final readonly class DevicePublishingSimulator
         int $count = 10,
         int $intervalSeconds = 1,
         ?int $schemaVersionTopicId = null,
-        string $host = '127.0.0.1',
-        int $port = 4223,
+        ?string $host = null,
+        ?int $port = null,
         ?callable $onBeforePublish = null,
         ?callable $onPublishFailed = null,
     ): void {
         $device->loadMissing('deviceType', 'schemaVersion.topics.parameters');
+        $resolvedHost = $this->resolveHost($host);
+        $resolvedPort = $this->resolvePort($port);
 
         $topics = $device->schemaVersion?->topics
             ?->filter(fn (SchemaVersionTopic $topic): bool => $topic->isPublish())
@@ -46,7 +48,7 @@ final readonly class DevicePublishingSimulator
             return;
         }
 
-        $publisher = $this->publisherFactory->make($host, $port);
+        $publisher = $this->publisherFactory->make($resolvedHost, $resolvedPort);
 
         for ($i = 1; $i <= $count; $i++) {
             foreach ($topics as $topic) {
@@ -124,5 +126,29 @@ final readonly class DevicePublishingSimulator
         $identifier = $device->external_id ?: $device->uuid;
 
         return trim($baseTopic, '/').'/'.$identifier.'/'.$topic->suffix;
+    }
+
+    private function resolveHost(?string $host): string
+    {
+        if (is_string($host) && trim($host) !== '') {
+            return trim($host);
+        }
+
+        $configuredHost = config('iot.nats.host', '127.0.0.1');
+
+        return is_string($configuredHost) && trim($configuredHost) !== ''
+            ? trim($configuredHost)
+            : '127.0.0.1';
+    }
+
+    private function resolvePort(?int $port): int
+    {
+        if (is_int($port) && $port > 0) {
+            return $port;
+        }
+
+        $configuredPort = config('iot.nats.port', 4223);
+
+        return is_numeric($configuredPort) ? (int) $configuredPort : 4223;
     }
 }

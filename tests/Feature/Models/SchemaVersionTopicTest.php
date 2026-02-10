@@ -304,6 +304,41 @@ test('buildCommandPayloadTemplate excludes inactive parameters', function (): vo
         ->and($template)->not->toHaveKey('inactive_param');
 });
 
+test('buildCommandPayloadTemplate omits optional button parameters by default', function (): void {
+    $topic = SchemaVersionTopic::factory()->subscribe()->create();
+
+    ParameterDefinition::factory()->create([
+        'schema_version_topic_id' => $topic->id,
+        'key' => 'brightness',
+        'json_path' => 'brightness',
+        'type' => ParameterDataType::Integer,
+        'default_value' => 42,
+        'is_active' => true,
+        'sequence' => 1,
+    ]);
+
+    ParameterDefinition::factory()->create([
+        'schema_version_topic_id' => $topic->id,
+        'key' => 'apply_changes',
+        'json_path' => 'apply_changes',
+        'type' => ParameterDataType::Boolean,
+        'default_value' => false,
+        'required' => false,
+        'control_ui' => [
+            'widget' => 'button',
+            'button_value' => true,
+        ],
+        'is_active' => true,
+        'sequence' => 2,
+    ]);
+
+    $template = $topic->buildCommandPayloadTemplate();
+
+    expect($template)->toBe([
+        'brightness' => 42,
+    ])->and($template)->not->toHaveKey('apply_changes');
+});
+
 test('buildPublishPayloadTemplate creates nested payload using JSONPath-like json_path', function (): void {
     $topic = SchemaVersionTopic::factory()->publish()->create();
 

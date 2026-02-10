@@ -286,6 +286,38 @@ it('marks duplicate envelopes and prevents duplicate downstream writes', functio
         ->and($this->fakePublisher->telemetryPublishes)->toHaveCount(1);
 });
 
+it('does not deduplicate repeated payloads when transport message id is absent', function (): void {
+    $context = buildTelemetryContext(true);
+
+    /** @var TelemetryIngestionService $service */
+    $service = app(TelemetryIngestionService::class);
+
+    $first = $service->ingest(new IncomingTelemetryEnvelope(
+        sourceSubject: str_replace('/', '.', $context['mqtt_topic']),
+        mqttTopic: $context['mqtt_topic'],
+        payload: ['temp_c' => 10],
+        deviceExternalId: 'sensor-01',
+        receivedAt: now(),
+    ));
+
+    $second = $service->ingest(new IncomingTelemetryEnvelope(
+        sourceSubject: str_replace('/', '.', $context['mqtt_topic']),
+        mqttTopic: $context['mqtt_topic'],
+        payload: ['temp_c' => 10],
+        deviceExternalId: 'sensor-01',
+        receivedAt: now()->addSecond(),
+    ));
+
+    expect($first)->toBeInstanceOf(IngestionMessage::class)
+        ->and($second)->toBeInstanceOf(IngestionMessage::class)
+        ->and($first?->id)->not->toBe($second?->id)
+        ->and($first?->status)->toBe(IngestionStatus::Completed)
+        ->and($second?->status)->toBe(IngestionStatus::Completed)
+        ->and(IngestionMessage::query()->count())->toBe(2)
+        ->and($this->fakeHotStateStore->writes)->toHaveCount(2)
+        ->and($this->fakePublisher->telemetryPublishes)->toHaveCount(2);
+});
+
 it('skips ingestion when the pipeline feature is disabled', function (): void {
     config(['ingestion.enabled' => false]);
 

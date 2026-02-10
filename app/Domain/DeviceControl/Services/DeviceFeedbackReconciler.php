@@ -13,6 +13,7 @@ use App\Domain\DeviceSchema\Enums\TopicLinkType;
 use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
 use App\Events\CommandCompleted;
 use App\Events\DeviceStateReceived;
+use Illuminate\Log\LogManager;
 use Illuminate\Support\Carbon;
 
 class DeviceFeedbackReconciler
@@ -28,6 +29,7 @@ class DeviceFeedbackReconciler
 
     public function __construct(
         private readonly NatsDeviceStateStore $stateStore,
+        private readonly LogManager $logManager,
     ) {}
 
     /**
@@ -47,22 +49,57 @@ class DeviceFeedbackReconciler
         string $host = '127.0.0.1',
         int $port = 4223,
     ): ?array {
+        $this->log()->debug('Reconciling inbound message', [
+            'mqtt_topic' => $mqttTopic,
+            'payload' => $payload,
+        ]);
+
         $resolved = $this->resolveRegistryTopic($mqttTopic);
 
         if ($resolved === null) {
+            $this->log()->debug('No registry match for topic — ignoring', [
+                'mqtt_topic' => $mqttTopic,
+            ]);
+
             return null;
         }
 
         $device = $resolved['device'];
         $topic = $resolved['topic'];
 
+        $this->log()->info('Inbound message matched', [
+            'mqtt_topic' => $mqttTopic,
+            'device_uuid' => $device->uuid,
+            'device_external_id' => $device->external_id,
+            'topic_id' => $topic->id,
+            'topic_suffix' => $topic->suffix,
+            'purpose' => $topic->resolvedPurpose()->value,
+        ]);
+
         $this->stateStore->store($device->uuid, $mqttTopic, $payload, $host, $port);
 
         $matchedCommandLog = $this->matchCommandLog($device, $topic, $payload);
 
         if ($matchedCommandLog instanceof DeviceCommandLog) {
+            $this->log()->info('Matched command log for feedback', [
+                'command_log_id' => $matchedCommandLog->id,
+                'correlation_id' => $matchedCommandLog->correlation_id,
+                'current_status' => $matchedCommandLog->getRawOriginal('status'),
+            ]);
+
             $this->applyFeedbackToCommandLog($matchedCommandLog, $topic, $payload);
+        } else {
+            $this->log()->debug('No pending command log matched', [
+                'device_uuid' => $device->uuid,
+                'mqtt_topic' => $mqttTopic,
+            ]);
         }
+
+        $this->log()->debug('Broadcasting DeviceStateReceived', [
+            'device_uuid' => $device->uuid,
+            'mqtt_topic' => $mqttTopic,
+            'command_log_id' => $matchedCommandLog?->id,
+        ]);
 
         event(new DeviceStateReceived(
             topic: $mqttTopic,
@@ -114,6 +151,11 @@ class DeviceFeedbackReconciler
         }
 
         $this->lastRegistryRefreshAt = now();
+
+        $this->log()->debug('Topic registry refreshed', [
+            'entries' => count($this->topicRegistry),
+            'topics' => array_keys($this->topicRegistry),
+        ]);
     }
 
     /**
@@ -222,6 +264,15 @@ class DeviceFeedbackReconciler
             $updates['completed_at'] = $now;
         }
 
+        $newStatus = $updates['status']->value;
+
+        $this->log()->info('Updating command log from feedback', [
+            'command_log_id' => $commandLog->id,
+            'new_status' => $newStatus,
+            'incoming_topic_id' => $incomingTopic->id,
+            'incoming_purpose' => $incomingTopic->resolvedPurpose()->value,
+        ]);
+
         $commandLog->update($updates);
         $commandLog->refresh();
         $commandLog->loadMissing('device');
@@ -229,6 +280,12 @@ class DeviceFeedbackReconciler
         $isCompleted = $this->isCompletedStatus($commandLog->status);
 
         if ($isCompleted) {
+            $this->log()->info('Command completed — broadcasting CommandCompleted', [
+                'command_log_id' => $commandLog->id,
+                'correlation_id' => $commandLog->correlation_id,
+                'device_uuid' => $commandLog->device?->uuid,
+            ]);
+
             event(new CommandCompleted($commandLog));
 
             $desiredQuery = DeviceDesiredTopicState::query()
@@ -395,5 +452,10 @@ class DeviceFeedbackReconciler
 
         /** @var array<string, mixed> $payload */
         return $payload;
+    }
+
+    private function log(): \Psr\Log\LoggerInterface
+    {
+        return $this->logManager->channel('device_control');
     }
 }

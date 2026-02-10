@@ -17,8 +17,8 @@ use function Laravel\Prompts\search;
 class MockDeviceCommand extends Command
 {
     protected $signature = 'iot:mock-device {device_uuid? : The UUID of the device to mock (optional)}
-                            {--host=127.0.0.1 : NATS broker host}
-                            {--port=4223 : NATS broker port}
+                            {--host= : NATS broker host}
+                            {--port= : NATS broker port}
                             {--delay=1 : Seconds to wait before responding with state}';
 
     protected $description = 'Mock an IoT device: subscribe to command topics and respond with state on publish topics';
@@ -26,8 +26,8 @@ class MockDeviceCommand extends Command
     public function handle(): int
     {
         $uuid = $this->argument('device_uuid');
-        $host = (string) $this->option('host');
-        $port = (int) $this->option('port');
+        $host = $this->resolveHost();
+        $port = $this->resolvePort();
         $delay = (int) $this->option('delay');
 
         // If no UUID provided, let user search and select a device
@@ -149,6 +149,32 @@ class MockDeviceCommand extends Command
                 sleep(1);
             }
         }
+    }
+
+    private function resolveHost(): string
+    {
+        $hostOption = $this->option('host');
+
+        if (is_string($hostOption) && trim($hostOption) !== '') {
+            return trim($hostOption);
+        }
+
+        $host = config('iot.nats.host', '127.0.0.1');
+
+        return is_string($host) && trim($host) !== '' ? trim($host) : '127.0.0.1';
+    }
+
+    private function resolvePort(): int
+    {
+        $portOption = $this->option('port');
+
+        if (is_numeric($portOption)) {
+            return (int) $portOption;
+        }
+
+        $port = config('iot.nats.port', 4223);
+
+        return is_numeric($port) ? (int) $port : 4223;
     }
 
     /**

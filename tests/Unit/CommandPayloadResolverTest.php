@@ -76,3 +76,55 @@ it('returns validation errors for invalid payload values', function (): void {
 
     expect($errors)->toHaveKey('brightness_level', 'BRIGHTNESS_RANGE');
 });
+
+it('omits default button widget values unless they are explicitly triggered', function (): void {
+    $topic = SchemaVersionTopic::factory()->subscribe()->create();
+
+    ParameterDefinition::factory()->create([
+        'schema_version_topic_id' => $topic->id,
+        'key' => 'power',
+        'json_path' => 'power',
+        'type' => ParameterDataType::Boolean,
+        'default_value' => false,
+        'sequence' => 1,
+        'is_active' => true,
+    ]);
+
+    ParameterDefinition::factory()->create([
+        'schema_version_topic_id' => $topic->id,
+        'key' => 'apply_changes',
+        'json_path' => 'apply_changes',
+        'type' => ParameterDataType::Boolean,
+        'default_value' => false,
+        'required' => false,
+        'control_ui' => [
+            'widget' => 'button',
+            'button_value' => true,
+        ],
+        'sequence' => 2,
+        'is_active' => true,
+    ]);
+
+    /** @var CommandPayloadResolver $resolver */
+    $resolver = app(CommandPayloadResolver::class);
+
+    $defaultButton = $resolver->resolveFromControls($topic, [
+        'power' => true,
+        'apply_changes' => false,
+    ]);
+
+    $triggeredButton = $resolver->resolveFromControls($topic, [
+        'power' => true,
+        'apply_changes' => true,
+    ]);
+
+    expect($defaultButton['errors'])->toBe([])
+        ->and($defaultButton['payload'])->toBe([
+            'power' => true,
+        ])
+        ->and($triggeredButton['errors'])->toBe([])
+        ->and($triggeredButton['payload'])->toBe([
+            'power' => true,
+            'apply_changes' => true,
+        ]);
+});
