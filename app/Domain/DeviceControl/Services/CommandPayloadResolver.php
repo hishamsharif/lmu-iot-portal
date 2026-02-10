@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\DeviceControl\Services;
 
+use App\Domain\DeviceSchema\Enums\ControlWidgetType;
 use App\Domain\DeviceSchema\Enums\ParameterDataType;
 use App\Domain\DeviceSchema\Models\ParameterDefinition;
 use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
@@ -22,9 +23,25 @@ class CommandPayloadResolver
         $errors = [];
 
         foreach ($topic->parameters->where('is_active', true)->sortBy('sequence') as $parameter) {
-            $rawValue = array_key_exists($parameter->key, $controlValues)
+            $widgetType = $parameter->resolvedWidgetType();
+            $defaultValue = $parameter->resolvedDefaultValue();
+            $hasControlValue = array_key_exists($parameter->key, $controlValues);
+
+            if (! $hasControlValue && $widgetType === ControlWidgetType::Button) {
+                continue;
+            }
+
+            $rawValue = $hasControlValue
                 ? $controlValues[$parameter->key]
-                : $parameter->resolvedDefaultValue();
+                : $defaultValue;
+
+            if (
+                $widgetType === ControlWidgetType::Button
+                && ! $parameter->required
+                && $rawValue === $defaultValue
+            ) {
+                continue;
+            }
 
             $value = $this->castForType($parameter, $rawValue);
             $validation = $parameter->validateValue($value);

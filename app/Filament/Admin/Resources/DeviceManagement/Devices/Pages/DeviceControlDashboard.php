@@ -18,6 +18,7 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\CodeEditor;
 use Filament\Forms\Components\CodeEditor\Enums\Language;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
@@ -93,6 +94,11 @@ class DeviceControlDashboard extends Page implements HasForms, HasTable
         return 'Control Dashboard';
     }
 
+    public function getMaxContentWidth(): string
+    {
+        return 'full';
+    }
+
     public function getHeaderActions(): array
     {
         return [
@@ -107,7 +113,7 @@ class DeviceControlDashboard extends Page implements HasForms, HasTable
     {
         return $schema
             ->components([
-                Grid::make(2)->schema([
+                Grid::make(3)->schema([
                     Group::make([
                         Radio::make('selectedTopicId')
                             ->label('Subscribe Topic')
@@ -134,7 +140,7 @@ class DeviceControlDashboard extends Page implements HasForms, HasTable
                         TextEntry::make('mqttSettings')
                             ->label('QoS / Retain')
                             ->state(fn (): string => $this->getMqttSettings()),
-                    ]),
+                    ])->columnSpan(1),
 
                     Group::make([
                         Checkbox::make('useAdvancedJson')
@@ -149,7 +155,16 @@ class DeviceControlDashboard extends Page implements HasForms, HasTable
                             ->required()
                             ->markAsRequired(false)
                             ->visible(fn (): bool => $this->useAdvancedJson),
-                    ]),
+
+                        Placeholder::make('controls')
+                            ->hiddenLabel()
+                            ->view('filament.admin.resources.device-management.devices.partials.control-widgets')
+                            ->visible(fn (): bool => ! $this->useAdvancedJson),
+
+                        Placeholder::make('send_button')
+                            ->hiddenLabel()
+                            ->view('filament.admin.resources.device-management.devices.partials.send-button'),
+                    ])->columnSpan(2),
                 ]),
             ]);
     }
@@ -170,6 +185,7 @@ class DeviceControlDashboard extends Page implements HasForms, HasTable
 
         $this->loadDefaultPayload();
         $this->loadInitialDeviceState();
+        $this->applyInitialStateToControlValues();
     }
 
     public function loadDefaultPayload(): void
@@ -449,6 +465,43 @@ class DeviceControlDashboard extends Page implements HasForms, HasTable
         return $device->uuid;
     }
 
+    /**
+     * Update control widget values from an incoming device state payload.
+     *
+     * Called via WebSocket when the device publishes new state, so the
+     * control sliders/toggles/selects reflect the device's actual values.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public function updateControlValuesFromState(array $payload): void
+    {
+        $changed = false;
+
+        foreach ($this->controlSchema as $control) {
+            $key = $control['key'];
+
+            if (! array_key_exists($key, $payload)) {
+                continue;
+            }
+
+            $value = $payload[$key];
+
+            if ($control['widget'] === 'toggle') {
+                $value = (bool) $value;
+            } elseif (in_array($control['widget'], ['slider', 'number'], true)) {
+                $value = is_numeric($value) ? $value + 0 : $value;
+            }
+
+            $this->controlValues[$key] = $value;
+            $changed = true;
+        }
+
+        if ($changed) {
+            $this->normalizeControlValuesForUi();
+            $this->syncAdvancedJsonFromControls();
+        }
+    }
+
     private function loadInitialDeviceState(): void
     {
         /** @var Device $device */
@@ -457,12 +510,59 @@ class DeviceControlDashboard extends Page implements HasForms, HasTable
         try {
             /** @var NatsDeviceStateStore $stateStore */
             $stateStore = app(NatsDeviceStateStore::class);
-            $this->initialDeviceStates = $stateStore->getAllStates($device->uuid);
+            $host = config('iot.nats.host', '127.0.0.1');
+            $port = config('iot.nats.port', 4223);
+            $resolvedHost = is_string($host) && trim($host) !== '' ? trim($host) : '127.0.0.1';
+            $resolvedPort = is_numeric($port) ? (int) $port : 4223;
+
+            $this->initialDeviceStates = $stateStore->getAllStates(
+                $device->uuid,
+                $resolvedHost,
+                $resolvedPort,
+            );
             $this->initialDeviceState = $this->initialDeviceStates[0] ?? null;
         } catch (\Throwable) {
             $this->initialDeviceStates = [];
             $this->initialDeviceState = null;
         }
+    }
+
+    /**
+     * Pre-populate control values from the last known device state loaded from NATS KV.
+     */
+    private function applyInitialStateToControlValues(): void
+    {
+        if ($this->initialDeviceStates === []) {
+            return;
+        }
+
+        foreach ($this->initialDeviceStates as $state) {
+            $payload = $state['payload'];
+
+            if ($payload === []) {
+                continue;
+            }
+
+            foreach ($this->controlSchema as $control) {
+                $key = $control['key'];
+
+                if (! array_key_exists($key, $payload)) {
+                    continue;
+                }
+
+                $value = $payload[$key];
+
+                if ($control['widget'] === 'toggle') {
+                    $value = (bool) $value;
+                } elseif (in_array($control['widget'], ['slider', 'number'], true)) {
+                    $value = is_numeric($value) ? $value + 0 : $value;
+                }
+
+                $this->controlValues[$key] = $value;
+            }
+        }
+
+        $this->normalizeControlValuesForUi();
     }
 
     /**
@@ -477,6 +577,24 @@ class DeviceControlDashboard extends Page implements HasForms, HasTable
         }
 
         return implode("\n", $messages);
+    }
+
+    private function syncAdvancedJsonFromControls(): void
+    {
+        $topic = $this->getSelectedTopic();
+
+        if (! $topic) {
+            return;
+        }
+
+        /** @var CommandPayloadResolver $payloadResolver */
+        $payloadResolver = app(CommandPayloadResolver::class);
+        $resolved = $payloadResolver->resolveFromControls($topic, $this->controlValues);
+
+        $this->commandPayloadJson = json_encode(
+            $resolved['payload'],
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES,
+        ) ?: '{}';
     }
 
     private function normalizeControlValuesForUi(): void

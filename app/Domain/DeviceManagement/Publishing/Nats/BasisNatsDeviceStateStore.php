@@ -98,10 +98,14 @@ final class BasisNatsDeviceStateStore implements NatsDeviceStateStore
 
     private function createClient(string $host, int $port): Client
     {
-        return new Client(new Configuration([
+        $client = new Client(new Configuration([
             'host' => $host,
             'port' => $port,
         ]));
+
+        $client->skipInvalidMessages(true);
+
+        return $client;
     }
 
     private function isJetStreamUnavailable(Throwable $exception): bool

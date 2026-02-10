@@ -6,6 +6,7 @@ namespace App\Domain\DeviceSchema\Models;
 
 use App\Domain\DeviceControl\Models\DeviceCommandLog;
 use App\Domain\DeviceManagement\Models\Device;
+use App\Domain\DeviceSchema\Enums\ControlWidgetType;
 use App\Domain\DeviceSchema\Enums\TopicDirection;
 use App\Domain\DeviceSchema\Enums\TopicLinkType;
 use App\Domain\DeviceSchema\Enums\TopicPurpose;
@@ -197,6 +198,13 @@ class SchemaVersionTopic extends Model
             ->where('is_active', true)
             ->sortBy('sequence')
             ->each(function (ParameterDefinition $parameter) use (&$payload): void {
+                if (
+                    $parameter->resolvedWidgetType() === ControlWidgetType::Button
+                    && ! $parameter->required
+                ) {
+                    return;
+                }
+
                 $payload = $parameter->placeValue($payload, $parameter->resolvedDefaultValue());
             });
 

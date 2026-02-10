@@ -127,6 +127,14 @@ return [
             'path' => storage_path('logs/laravel.log'),
         ],
 
+        'device_control' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/device-control.log'),
+            'level' => env('DEVICE_CONTROL_LOG_LEVEL', 'debug'),
+            'days' => 14,
+            'replace_placeholders' => true,
+        ],
+
     ],
 
 ];

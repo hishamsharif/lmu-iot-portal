@@ -391,3 +391,43 @@ it('renders color picker controls when widget is configured as color', function 
     expect($component->get('controlSchema.0.widget'))->toBe('color')
         ->and($component->get('controlValues.color_hex'))->toBe('#ff0000');
 });
+
+it('updates control values from incoming device state payload', function (): void {
+    $device = createTestDeviceForDashboard();
+
+    $component = livewire(DeviceControlDashboard::class, ['record' => $device->id]);
+
+    expect($component->get('controlValues.power'))->toBe('off');
+
+    $component->call('updateControlValuesFromState', ['power' => 'on']);
+
+    expect($component->get('controlValues.power'))->toBe('on');
+});
+
+it('ignores unknown keys in state payload during update', function (): void {
+    $device = createTestDeviceForDashboard();
+
+    $component = livewire(DeviceControlDashboard::class, ['record' => $device->id]);
+
+    $component->call('updateControlValuesFromState', [
+        'power' => 'on',
+        'unknown_field' => 'some-value',
+    ]);
+
+    expect($component->get('controlValues.power'))->toBe('on')
+        ->and($component->get('controlValues'))->not->toHaveKey('unknown_field');
+});
+
+it('applies initial device state to control values on mount', function (): void {
+    $device = createTestDeviceForDashboard();
+
+    bindFakeDeviceStateStoreForDashboard([
+        'topic' => 'devices/pump-42/state',
+        'payload' => ['power' => 'on'],
+        'stored_at' => '2025-01-15T10:30:00+00:00',
+    ]);
+
+    $component = livewire(DeviceControlDashboard::class, ['record' => $device->id]);
+
+    expect($component->get('controlValues.power'))->toBe('on');
+});

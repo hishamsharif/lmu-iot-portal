@@ -28,8 +28,9 @@ final readonly class IncomingTelemetryEnvelope
         }
 
         $encodedPayload = json_encode($this->payload, JSON_THROW_ON_ERROR);
+        $receivedAtKey = $this->resolveReceivedAt()->toIso8601String();
 
-        return hash('sha256', $this->sourceSubject.'|'.$encodedPayload);
+        return hash('sha256', $this->sourceSubject.'|'.$encodedPayload.'|'.$receivedAtKey);
     }
 
     public function resolveReceivedAt(): Carbon

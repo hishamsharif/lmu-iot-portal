@@ -9,23 +9,29 @@ use Basis\Nats\Client;
 use Basis\Nats\Configuration;
 use Basis\Nats\Message\Payload;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 use JsonException;
 
 class ListenForDeviceStates extends Command
 {
     protected $signature = 'iot:listen-for-device-states
-                            {--host=127.0.0.1 : NATS broker host}
-                            {--port=4223 : NATS broker port}';
+                            {--host= : NATS broker host}
+                            {--port= : NATS broker port}';
 
     protected $description = 'Listen for device feedback messages from NATS and reconcile command/state lifecycle';
 
     public function handle(): int
     {
-        $host = (string) $this->option('host');
-        $port = (int) $this->option('port');
+        $host = $this->resolveHost();
+        $port = $this->resolvePort();
 
         $this->info('Starting device state listener...');
         $this->info("Connecting to NATS at {$host}:{$port}");
+
+        Log::channel('device_control')->info('Device state listener starting', [
+            'host' => $host,
+            'port' => $port,
+        ]);
 
         $configuration = new Configuration([
             'host' => $host,
@@ -50,8 +56,19 @@ class ListenForDeviceStates extends Command
                 $decodedPayload = $this->decodePayload($body);
 
                 if ($decodedPayload === null) {
+                    Log::channel('device_control')->debug('Skipping non-JSON message', [
+                        'subject' => $subject,
+                        'body_length' => strlen($body),
+                    ]);
+
                     return;
                 }
+
+                Log::channel('device_control')->debug('NATS message received', [
+                    'subject' => $subject,
+                    'mqtt_topic' => $mqttTopic,
+                    'payload' => $decodedPayload,
+                ]);
 
                 $result = $reconciler->reconcileInboundMessage(
                     mqttTopic: $mqttTopic,
@@ -64,6 +81,14 @@ class ListenForDeviceStates extends Command
                     return;
                 }
 
+                Log::channel('device_control')->info('Message reconciled', [
+                    'device_uuid' => $result['device_uuid'],
+                    'device_external_id' => $result['device_external_id'],
+                    'topic' => $result['topic'],
+                    'purpose' => $result['purpose'],
+                    'command_log_id' => $result['command_log_id'],
+                ]);
+
                 $this->line(sprintf(
                     'Received %s [%s] for %s%s',
                     $result['topic'],
@@ -72,12 +97,19 @@ class ListenForDeviceStates extends Command
                     $result['command_log_id'] !== null ? " (command #{$result['command_log_id']})" : '',
                 ));
             } catch (\Throwable $e) {
+                Log::channel('device_control')->error('Listener processing error', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+
                 $this->error("  Processing error: {$e->getMessage()}");
             }
         });
 
         $this->info('Device state listener is running. Press Ctrl+C to stop.');
         $this->newLine();
+
+        Log::channel('device_control')->info('Device state listener is running');
 
         // Keep the client processing messages
         while (true) { /** @phpstan-ignore while.alwaysTrue */
@@ -88,9 +120,39 @@ class ListenForDeviceStates extends Command
                     continue;
                 }
 
+                Log::channel('device_control')->warning('Listener process loop error', [
+                    'error' => $e->getMessage(),
+                ]);
+
                 sleep(1);
             }
         }
+    }
+
+    private function resolveHost(): string
+    {
+        $hostOption = $this->option('host');
+
+        if (is_string($hostOption) && trim($hostOption) !== '') {
+            return trim($hostOption);
+        }
+
+        $host = config('iot.nats.host', '127.0.0.1');
+
+        return is_string($host) && trim($host) !== '' ? trim($host) : '127.0.0.1';
+    }
+
+    private function resolvePort(): int
+    {
+        $portOption = $this->option('port');
+
+        if (is_numeric($portOption)) {
+            return (int) $portOption;
+        }
+
+        $port = config('iot.nats.port', 4223);
+
+        return is_numeric($port) ? (int) $port : 4223;
     }
 
     /**

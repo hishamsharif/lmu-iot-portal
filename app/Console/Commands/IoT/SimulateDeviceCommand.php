@@ -19,8 +19,8 @@ class SimulateDeviceCommand extends Command
     protected $signature = 'iot:simulate {device_uuid : The UUID of the device to simulate}
                             {--count=10 : Number of data points to generate}
                             {--interval=1 : Seconds between each message}
-                            {--host=127.0.0.1 : NATS broker host}
-                            {--port=4223 : NATS broker port}';
+                            {--host= : NATS broker host}
+                            {--port= : NATS broker port}';
 
     /**
      * The console command description.
@@ -37,8 +37,8 @@ class SimulateDeviceCommand extends Command
         $uuid = $this->argument('device_uuid');
         $count = (int) $this->option('count');
         $interval = (int) $this->option('interval');
-        $host = (string) $this->option('host');
-        $port = (int) $this->option('port');
+        $host = $this->resolveHost();
+        $port = $this->resolvePort();
 
         $device = Device::where('uuid', $uuid)->first();
 
@@ -83,6 +83,32 @@ class SimulateDeviceCommand extends Command
         $this->info('Simulation complete.');
 
         return 0;
+    }
+
+    private function resolveHost(): string
+    {
+        $hostOption = $this->option('host');
+
+        if (is_string($hostOption) && trim($hostOption) !== '') {
+            return trim($hostOption);
+        }
+
+        $host = config('iot.nats.host', '127.0.0.1');
+
+        return is_string($host) && trim($host) !== '' ? trim($host) : '127.0.0.1';
+    }
+
+    private function resolvePort(): int
+    {
+        $portOption = $this->option('port');
+
+        if (is_numeric($portOption)) {
+            return (int) $portOption;
+        }
+
+        $port = config('iot.nats.port', 4223);
+
+        return is_numeric($port) ? (int) $port : 4223;
     }
 
     // Simulation implementation lives in DevicePublishingSimulator so it can be reused by Filament actions.
