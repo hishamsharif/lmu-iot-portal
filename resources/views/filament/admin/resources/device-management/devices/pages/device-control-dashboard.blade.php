@@ -282,19 +282,21 @@
         }
     </style>
 
-    <div
-        x-data="{ connectionState: @js($this->deviceConnectionState ?? 'unknown') }"
-        x-on:device-connection-changed.window="connectionState = $event.detail.state"
-        style="margin-bottom: 0.75rem;"
-    >
-        <div class="dc-status-indicator" :data-state="connectionState">
-            <div class="dc-status-dot" :data-state="connectionState"></div>
-            <span x-text="connectionState === 'online' ? 'Device Online' : (connectionState === 'offline' ? 'Device Offline' : 'Status Unknown')"></span>
-        </div>
-    </div>
-
     <x-filament::section>
         <x-slot name="heading">Send Command</x-slot>
+
+        <x-slot name="afterHeader">
+            <div
+                x-data="{ connectionState: @js($this->deviceConnectionState ?? 'unknown') }"
+                x-on:device-connection-changed.window="connectionState = $event.detail.state"
+            >
+                <div class="dc-status-indicator" :data-state="connectionState">
+                    <div class="dc-status-dot" :data-state="connectionState"></div>
+                    <span x-text="connectionState === 'online' ? 'Device Online' : (connectionState === 'offline' ? 'Device Offline' : 'Status Unknown')"></span>
+                </div>
+            </div>
+        </x-slot>
+
         <x-slot name="description">Select a command topic and control parameters. Enable advanced mode to send raw JSON.</x-slot>
 
         @if(count($this->subscribeTopicOptions) > 0)
