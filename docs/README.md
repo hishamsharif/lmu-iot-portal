@@ -13,6 +13,17 @@
 - [07 - Artisan Commands](device-control/07-artisan-commands.md)
 - [08 - Realtime Events and UI](device-control/08-realtime-events-and-ui.md)
 
+### Telemetry
+
+- [01 - Overview](telemetry/01-overview.md)
+- [02 - Architecture](telemetry/02-architecture.md)
+- [03 - Ingestion Lifecycle and Stage Model](telemetry/03-ingestion-lifecycle-and-stage-model.md)
+- [04 - Schema Contract, Validation, and Transformation](telemetry/04-schema-contract-validation-and-transformation.md)
+- [05 - Events, Realtime, and Integrations](telemetry/05-events-realtime-and-integrations.md)
+- [06 - Observability and Troubleshooting](telemetry/06-observability-and-troubleshooting.md)
+- [07 - Operations and Performance](telemetry/07-operations-and-performance.md)
+- [08 - Testing and Roadmap](telemetry/08-testing-and-roadmap.md)
+
 ### Automation
 
 - [01 - Overview](automation/01-overview.md)
