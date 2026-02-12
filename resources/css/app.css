@@ -1,0 +1,442 @@
+@import "@xyflow/react/dist/style.css";
+
+:root {
+    --automation-dag-bg-start: #fff7ed;
+    --automation-dag-bg-end: #f8fafc;
+    --automation-dag-border: #dbe2ea;
+    --automation-dag-panel-bg: rgb(255 255 255 / 0.92);
+    --automation-dag-panel-border: #d6dde6;
+    --automation-dag-text: #0f172a;
+    --automation-dag-muted: #475569;
+    --automation-dag-accent: #f59e0b;
+    --automation-dag-accent-strong: #b45309;
+    --automation-dag-node-bg: #ffffff;
+    --automation-dag-node-border: #cfd8e3;
+    --automation-dag-node-summary: #475569;
+    --automation-dag-handle: #1d4ed8;
+    --automation-dag-overlay: rgb(15 23 42 / 0.52);
+    --automation-dag-modal-bg: #ffffff;
+    --automation-dag-modal-border: #cfd8e3;
+    --automation-dag-danger: #dc2626;
+}
+
+.dark {
+    --automation-dag-bg-start: #111827;
+    --automation-dag-bg-end: #0f172a;
+    --automation-dag-border: #334155;
+    --automation-dag-panel-bg: rgb(15 23 42 / 0.92);
+    --automation-dag-panel-border: #334155;
+    --automation-dag-text: #e2e8f0;
+    --automation-dag-muted: #94a3b8;
+    --automation-dag-accent: #fbbf24;
+    --automation-dag-accent-strong: #f59e0b;
+    --automation-dag-node-bg: #0f172a;
+    --automation-dag-node-border: #334155;
+    --automation-dag-node-summary: #94a3b8;
+    --automation-dag-handle: #93c5fd;
+    --automation-dag-overlay: rgb(2 6 23 / 0.72);
+    --automation-dag-modal-bg: #0f172a;
+    --automation-dag-modal-border: #334155;
+    --automation-dag-danger: #f87171;
+}
+
+.automation-dag-shell {
+    display: grid;
+    gap: 0.9rem;
+}
+
+.automation-dag-header {
+    display: grid;
+    gap: 0.35rem;
+}
+
+.automation-dag-header h2 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--automation-dag-text);
+}
+
+.automation-dag-header p {
+    margin: 0;
+    font-size: 0.86rem;
+    color: var(--automation-dag-muted);
+}
+
+.automation-dag-canvas {
+    min-height: 72vh;
+    border: 1px solid var(--automation-dag-border);
+    border-radius: 0.95rem;
+    overflow: hidden;
+    background: radial-gradient(circle at 0 0, var(--automation-dag-bg-start), var(--automation-dag-bg-end) 48%);
+}
+
+.automation-dag-builder-root {
+    position: relative;
+    width: 100%;
+    height: 72vh;
+}
+
+.automation-dag-builder-root .react-flow__attribution {
+    display: none;
+}
+
+.automation-dag-panel {
+    display: grid;
+    gap: 0.55rem;
+    padding: 0.75rem;
+    border: 1px solid var(--automation-dag-panel-border);
+    border-radius: 0.8rem;
+    background: var(--automation-dag-panel-bg);
+    backdrop-filter: blur(6px);
+    box-shadow: 0 8px 20px rgb(15 23 42 / 0.08);
+}
+
+.automation-dag-panel h3 {
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--automation-dag-muted);
+}
+
+.automation-dag-node-palette {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem;
+}
+
+.automation-dag-node-button,
+.automation-dag-action {
+    border-radius: 0.55rem;
+    border: 1px solid transparent;
+    padding: 0.42rem 0.62rem;
+    font-size: 0.76rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.automation-dag-node-button {
+    border-color: color-mix(in srgb, var(--automation-dag-accent) 70%, #ffffff 30%);
+    background: color-mix(in srgb, var(--automation-dag-accent) 16%, transparent);
+    color: var(--automation-dag-accent-strong);
+}
+
+.dark .automation-dag-node-button {
+    color: var(--automation-dag-accent);
+}
+
+.automation-dag-node-button:hover {
+    background: color-mix(in srgb, var(--automation-dag-accent) 24%, transparent);
+}
+
+.automation-dag-action:disabled {
+    opacity: 0.58;
+    cursor: not-allowed;
+}
+
+.automation-dag-action-primary {
+    background: var(--automation-dag-accent);
+    color: #ffffff;
+}
+
+.automation-dag-action-primary:hover {
+    background: var(--automation-dag-accent-strong);
+}
+
+.dark .automation-dag-action-primary {
+    color: #0f172a;
+}
+
+.automation-dag-action-secondary {
+    background: color-mix(in srgb, var(--automation-dag-panel-bg) 95%, transparent);
+    border-color: var(--automation-dag-panel-border);
+    color: var(--automation-dag-text);
+}
+
+.automation-dag-action-secondary:hover {
+    background: color-mix(in srgb, var(--automation-dag-panel-bg) 82%, transparent);
+}
+
+.automation-dag-node {
+    min-width: 215px;
+    max-width: 260px;
+    padding: 0.6rem 0.72rem;
+    border: 1px solid var(--automation-dag-node-border);
+    border-radius: 0.8rem;
+    background: var(--automation-dag-node-bg);
+    color: var(--automation-dag-text);
+    box-shadow: 0 10px 22px rgb(15 23 42 / 0.14);
+}
+
+.automation-dag-node.is-selected {
+    border-color: var(--automation-dag-accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--automation-dag-accent) 50%, transparent), 0 10px 22px rgb(15 23 42 / 0.2);
+}
+
+.automation-dag-node-chip {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.12rem 0.44rem;
+    font-size: 0.63rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: color-mix(in srgb, var(--automation-dag-accent) 84%, #111827 16%);
+    background: color-mix(in srgb, var(--automation-dag-accent) 20%, transparent);
+}
+
+.dark .automation-dag-node-chip {
+    color: var(--automation-dag-accent);
+}
+
+.automation-dag-node-title {
+    margin-top: 0.42rem;
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: var(--automation-dag-text);
+}
+
+.automation-dag-node-summary {
+    margin-top: 0.24rem;
+    font-size: 0.72rem;
+    line-height: 1.25;
+    color: var(--automation-dag-node-summary);
+    word-break: break-word;
+}
+
+.automation-dag-handle {
+    width: 11px;
+    height: 11px;
+    border: 2px solid var(--automation-dag-node-bg);
+    background: var(--automation-dag-handle);
+}
+
+.automation-dag-builder-root .react-flow__edge-path {
+    stroke: color-mix(in srgb, var(--automation-dag-text) 40%, transparent);
+    stroke-width: 1.7;
+}
+
+.automation-dag-builder-root .react-flow__edge.selected .react-flow__edge-path {
+    stroke: var(--automation-dag-accent);
+}
+
+.automation-dag-builder-root .react-flow__controls {
+    border-radius: 0.65rem;
+    border: 1px solid var(--automation-dag-panel-border);
+    overflow: hidden;
+    box-shadow: 0 6px 18px rgb(15 23 42 / 0.16);
+}
+
+.automation-dag-builder-root .react-flow__controls button {
+    border-bottom: 1px solid var(--automation-dag-panel-border);
+    background: var(--automation-dag-panel-bg);
+    color: var(--automation-dag-text);
+}
+
+.automation-dag-builder-root .react-flow__controls button:hover {
+    background: color-mix(in srgb, var(--automation-dag-panel-bg) 82%, transparent);
+}
+
+.automation-dag-minimap {
+    border: 1px solid var(--automation-dag-panel-border);
+    border-radius: 0.65rem;
+    overflow: hidden;
+    background: var(--automation-dag-panel-bg);
+}
+
+.automation-dag-modal-overlay {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    background: var(--automation-dag-overlay);
+    z-index: 9999;
+}
+
+.automation-dag-modal {
+    width: min(920px, 100%);
+    max-height: calc(100vh - 2rem);
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    border-radius: 0.9rem;
+    border: 1px solid var(--automation-dag-modal-border);
+    background: var(--automation-dag-modal-bg);
+    box-shadow: 0 18px 40px rgb(2 6 23 / 0.4);
+    overflow: hidden;
+}
+
+.automation-dag-modal-header {
+    padding: 0.9rem 1rem;
+    border-bottom: 1px solid var(--automation-dag-modal-border);
+}
+
+.automation-dag-modal-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--automation-dag-text);
+}
+
+.automation-dag-modal-header p {
+    margin: 0.2rem 0 0;
+    font-size: 0.8rem;
+    color: var(--automation-dag-muted);
+}
+
+.automation-dag-modal-body {
+    padding: 0.9rem 1rem;
+    overflow: auto;
+}
+
+.automation-dag-modal-footer {
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--automation-dag-modal-border);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.automation-dag-modal-grid {
+    display: grid;
+    gap: 0.72rem;
+}
+
+.automation-dag-grid-two {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.72rem;
+}
+
+.automation-dag-parameter-grid {
+    display: grid;
+    gap: 0.7rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.automation-dag-field {
+    display: grid;
+    gap: 0.35rem;
+}
+
+.automation-dag-field-inline {
+    grid-template-columns: 1fr auto;
+    align-items: center;
+}
+
+.automation-dag-field > span {
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--automation-dag-muted);
+}
+
+.automation-dag-field select,
+.automation-dag-field input,
+.automation-dag-field textarea {
+    width: 100%;
+    border: 1px solid var(--automation-dag-modal-border);
+    border-radius: 0.55rem;
+    padding: 0.5rem 0.6rem;
+    background: color-mix(in srgb, var(--automation-dag-modal-bg) 96%, transparent);
+    color: var(--automation-dag-text);
+    font-size: 0.82rem;
+}
+
+.automation-dag-field textarea {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.automation-dag-field select:focus,
+.automation-dag-field input:focus,
+.automation-dag-field textarea:focus {
+    outline: 2px solid color-mix(in srgb, var(--automation-dag-accent) 48%, transparent);
+    outline-offset: 1px;
+}
+
+.automation-dag-info-panel {
+    border: 1px solid var(--automation-dag-modal-border);
+    border-radius: 0.65rem;
+    padding: 0.62rem;
+    background: color-mix(in srgb, var(--automation-dag-modal-bg) 94%, transparent);
+    font-size: 0.8rem;
+    color: var(--automation-dag-muted);
+    display: grid;
+    gap: 0.35rem;
+}
+
+.automation-dag-info-panel strong {
+    color: var(--automation-dag-text);
+}
+
+.automation-dag-info-value {
+    font-size: 0.92rem;
+    color: var(--automation-dag-text);
+    word-break: break-word;
+}
+
+.automation-dag-info-caption {
+    font-size: 0.72rem;
+    color: var(--automation-dag-muted);
+}
+
+.automation-dag-tab-bar {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border: 1px solid var(--automation-dag-modal-border);
+    border-radius: 999px;
+    padding: 0.2rem;
+    width: fit-content;
+}
+
+.automation-dag-tab {
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--automation-dag-muted);
+    border-radius: 999px;
+    padding: 0.28rem 0.65rem;
+    font-size: 0.74rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.automation-dag-tab.is-active {
+    background: color-mix(in srgb, var(--automation-dag-accent) 22%, transparent);
+    color: color-mix(in srgb, var(--automation-dag-accent) 86%, var(--automation-dag-text) 14%);
+}
+
+.automation-dag-modal-error,
+.automation-dag-field-error {
+    color: var(--automation-dag-danger);
+    font-size: 0.74rem;
+    font-weight: 600;
+}
+
+.automation-dag-empty-state {
+    grid-column: 1 / -1;
+    border: 1px dashed var(--automation-dag-modal-border);
+    border-radius: 0.65rem;
+    padding: 0.72rem;
+    color: var(--automation-dag-muted);
+    font-size: 0.78rem;
+}
+
+@media (max-width: 1080px) {
+    .automation-dag-canvas,
+    .automation-dag-builder-root {
+        min-height: 80vh;
+        height: 80vh;
+    }
+
+    .automation-dag-node-palette,
+    .automation-dag-grid-two,
+    .automation-dag-parameter-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .automation-dag-modal {
+        width: min(720px, 100%);
+    }
+}

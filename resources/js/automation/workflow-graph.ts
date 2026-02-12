@@ -1,0 +1,67 @@
+export type TelemetryTriggerNodeConfig = {
+    mode: 'event';
+    source: {
+        device_id: number;
+        topic_id: number;
+        parameter_definition_id: number;
+    };
+};
+
+export type ConditionGuidedConfig = {
+    left: 'trigger.value';
+    operator: '>' | '>=' | '<' | '<=' | '==' | '!=';
+    right: number;
+};
+
+export type ConditionNodeConfig = {
+    mode: 'guided' | 'json_logic';
+    json_logic: Record<string, unknown>;
+    guided?: ConditionGuidedConfig;
+};
+
+export type CommandNodeConfig = {
+    target: {
+        device_id: number;
+        topic_id: number;
+    };
+    payload: Record<string, unknown>;
+    payload_mode: 'schema_form';
+};
+
+export type GenericNodeConfig = Record<string, unknown>;
+
+export type WorkflowNodeData = {
+    label?: string;
+    summary?: string;
+    nodeType?: string;
+    config?:
+        | TelemetryTriggerNodeConfig
+        | ConditionNodeConfig
+        | CommandNodeConfig
+        | GenericNodeConfig;
+    [key: string]: unknown;
+};
+
+export type WorkflowNode = {
+    id: string;
+    type: string;
+    data?: WorkflowNodeData;
+    position?: {
+        x: number;
+        y: number;
+    };
+};
+
+export type WorkflowEdge = {
+    id?: string;
+    source: string;
+    target: string;
+    type?: string;
+};
+
+export type WorkflowGraph = {
+    version: number;
+    nodes: WorkflowNode[];
+    edges: WorkflowEdge[];
+    viewport?: Record<string, unknown>;
+};

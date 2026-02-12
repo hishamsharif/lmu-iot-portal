@@ -37,6 +37,8 @@ class JsonLogicEvaluator
         return match ($operator) {
             'var' => $this->resolveVar($values, $data),
             '+', '-', '*', '/', 'min', 'max' => $this->applyNumericOperator($operator, $values, $data),
+            '==', '===', '!=', '!==', '>', '>=', '<', '<=' => $this->applyComparisonOperator($operator, $values, $data),
+            'and', 'or', '!' => $this->applyLogicalOperator($operator, $values, $data),
             'if' => $this->applyIf($values, $data),
             default => $values,
         };
@@ -142,6 +144,45 @@ class JsonLogicEvaluator
         return $this->evaluate($condition, $data) ? $this->evaluate($truthy, $data) : $this->evaluate($falsy, $data);
     }
 
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function applyComparisonOperator(string $operator, mixed $values, array $data): bool
+    {
+        $items = is_array($values) ? array_values($values) : [$values];
+
+        $left = $this->evaluate($items[0] ?? null, $data);
+        $right = $this->evaluate($items[1] ?? null, $data);
+
+        return match ($operator) {
+            '==' => $left == $right,
+            '===' => $left === $right,
+            '!=' => $left != $right,
+            '!==' => $left !== $right,
+            '>' => $this->compareValues($left, $right) > 0,
+            '>=' => $this->compareValues($left, $right) >= 0,
+            '<' => $this->compareValues($left, $right) < 0,
+            '<=' => $this->compareValues($left, $right) <= 0,
+            default => false,
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function applyLogicalOperator(string $operator, mixed $values, array $data): bool
+    {
+        $items = is_array($values) ? array_values($values) : [$values];
+        $evaluated = array_map(fn (mixed $item): mixed => $this->evaluate($item, $data), $items);
+
+        return match ($operator) {
+            'and' => $this->evaluateAllTruthy($evaluated),
+            'or' => $this->evaluateAnyTruthy($evaluated),
+            '!' => ! $this->isTruthy($evaluated[0] ?? null),
+            default => false,
+        };
+    }
+
     private function toNumber(mixed $value): float
     {
         if (is_bool($value)) {
@@ -153,6 +194,69 @@ class JsonLogicEvaluator
         }
 
         return 0.0;
+    }
+
+    private function compareValues(mixed $left, mixed $right): int
+    {
+        if (is_numeric($left) && is_numeric($right)) {
+            return $left <=> $right;
+        }
+
+        $leftString = is_scalar($left) || $left instanceof \Stringable ? (string) $left : '';
+        $rightString = is_scalar($right) || $right instanceof \Stringable ? (string) $right : '';
+
+        return $leftString <=> $rightString;
+    }
+
+    /**
+     * @param  array<int, mixed>  $values
+     */
+    private function evaluateAllTruthy(array $values): bool
+    {
+        foreach ($values as $value) {
+            if (! $this->isTruthy($value)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  array<int, mixed>  $values
+     */
+    private function evaluateAnyTruthy(array $values): bool
+    {
+        foreach ($values as $value) {
+            if ($this->isTruthy($value)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isTruthy(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_numeric($value)) {
+            return (float) $value !== 0.0;
+        }
+
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+
+            return ! in_array($normalized, ['', '0', 'false', 'off', 'no', 'null'], true);
+        }
+
+        if (is_array($value)) {
+            return $value !== [];
+        }
+
+        return $value !== null;
     }
 
     /**

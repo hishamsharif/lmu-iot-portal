@@ -9,6 +9,7 @@ use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
+use Filament\Support\Assets\Css;
 use Filament\Support\Assets\Js;
 use Filament\Support\Colors\Color;
 use Filament\Widgets\AccountWidget;
@@ -66,6 +67,7 @@ class AdminPanelProvider extends PanelProvider
 
         if (! app()->runningInConsole()) {
             $panel = $panel->assets([
+                Css::make('app', Vite::asset('resources/css/app.css')),
                 Js::make('app', Vite::asset('resources/js/app.js'))->module(),
             ]);
         }

@@ -2,6 +2,10 @@
 
 namespace App\Providers;
 
+use App\Domain\Automation\Contracts\TriggerMatcher;
+use App\Domain\Automation\Listeners\QueueTelemetryAutomationRuns;
+use App\Domain\Automation\Models\AutomationWorkflow;
+use App\Domain\Automation\Services\DatabaseTriggerMatcher;
 use App\Domain\DataIngestion\Contracts\AnalyticsPublisher;
 use App\Domain\DataIngestion\Contracts\HotStateStore;
 use App\Domain\DataIngestion\Services\NatsAnalyticsPublisher;
@@ -13,6 +17,8 @@ use App\Domain\DeviceManagement\Publishing\Nats\BasisNatsPublisherFactory;
 use App\Domain\DeviceManagement\Publishing\Nats\NatsDeviceStateStore;
 use App\Domain\DeviceManagement\Publishing\Nats\NatsPublisherFactory;
 use App\Domain\Shared\Models\User;
+use App\Events\TelemetryReceived;
+use App\Policies\AutomationWorkflowPolicy;
 use Filament\Events\TenantSet;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\Field;
@@ -40,6 +46,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(MqttCommandPublisher::class, PhpMqttCommandPublisher::class);
         $this->app->bind(HotStateStore::class, NatsKvHotStateStore::class);
         $this->app->bind(AnalyticsPublisher::class, NatsAnalyticsPublisher::class);
+        $this->app->bind(TriggerMatcher::class, DatabaseTriggerMatcher::class);
 
         if ($this->app->environment('local')) {
             $this->app->register(\Laravel\Telescope\TelescopeServiceProvider::class);
@@ -85,11 +92,15 @@ class AppServiceProvider extends ServiceProvider
             return $user->isSuperAdmin() ? true : null;
         });
 
+        Gate::policy(AutomationWorkflow::class, AutomationWorkflowPolicy::class);
+
         Event::listen(TenantSet::class, function (): void {
             setPermissionsTeamId(Filament::getTenant()->id);
 
             Cache::store(config('permission.cache.store') === 'default' ? null : config('permission.cache.store'))
                 ->forget(config('permission.cache.key'));
         });
+
+        Event::listen(TelemetryReceived::class, QueueTelemetryAutomationRuns::class);
     }
 }

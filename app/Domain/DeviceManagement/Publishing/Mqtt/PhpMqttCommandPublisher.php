@@ -14,11 +14,13 @@ use RuntimeException;
  * in the NATS MQTT bridge's JetStream stream ($MQTT_msgs) and properly
  * delivered to MQTT devices that subscribe with QoS 1.
  *
- * Uses a fixed client ID with clean_session=0 (persistent session) to avoid
- * corrupting the NATS MQTT bridge's $MQTT_sess JetStream stream. Random
- * client IDs with clean_session=1 caused rapid session record create/delete
- * cycles that produced invalid JSON in the stream, breaking other MQTT
- * clients' subscription restoration.
+ * Uses clean_session=1 so the NATS MQTT bridge does NOT persist any session
+ * data in the $MQTT_sess JetStream stream for this transient publisher.
+ * This prevents corruption of $MQTT_sess which would break subscription
+ * restoration for long-lived device connections (e.g. rgb-led-01).
+ *
+ * A fixed client ID with a file lock ensures at most one concurrent MQTT
+ * connection from the platform, avoiding race conditions in session handling.
  */
 final class PhpMqttCommandPublisher implements MqttCommandPublisher
 {
@@ -110,7 +112,7 @@ final class PhpMqttCommandPublisher implements MqttCommandPublisher
     {
         $variableHeader = $this->encodeUtf8String('MQTT')
             ."\x04"
-            ."\x00"
+            ."\x02"
             .pack('n', self::KEEPALIVE_SECONDS);
 
         $packetPayload = $this->encodeUtf8String(self::CLIENT_ID);
