@@ -10,6 +10,7 @@ use App\Domain\DeviceSchema\Enums\ControlWidgetType;
 use App\Domain\DeviceSchema\Enums\TopicDirection;
 use App\Domain\DeviceSchema\Enums\TopicLinkType;
 use App\Domain\DeviceSchema\Enums\TopicPurpose;
+use App\Domain\IoTDashboard\Models\IoTDashboardWidget;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -62,6 +63,14 @@ class SchemaVersionTopic extends Model
     public function commandLogs(): HasMany
     {
         return $this->hasMany(DeviceCommandLog::class, 'schema_version_topic_id');
+    }
+
+    /**
+     * @return HasMany<IoTDashboardWidget, $this>
+     */
+    public function dashboardWidgets(): HasMany
+    {
+        return $this->hasMany(IoTDashboardWidget::class, 'schema_version_topic_id');
     }
 
     /**

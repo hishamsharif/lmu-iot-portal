@@ -1,8 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Domain\Shared\Models;
 
 use App\Domain\Authorization\Models\Role;
+use App\Domain\IoTDashboard\Models\IoTDashboard;
 use Database\Factories\OrganizationFactory;
 use Filament\Models\Contracts\HasAvatar;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -58,5 +61,13 @@ class Organization extends Model implements HasAvatar
     public function roles(): HasMany
     {
         return $this->hasMany(Role::class);
+    }
+
+    /**
+     * @return HasMany<IoTDashboard, $this>
+     */
+    public function dashboards(): HasMany
+    {
+        return $this->hasMany(IoTDashboard::class);
     }
 }

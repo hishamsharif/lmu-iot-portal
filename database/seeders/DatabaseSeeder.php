@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Database\Seeders;
 
 use Database\Factories\UserFactory;
@@ -39,6 +41,7 @@ class DatabaseSeeder extends Seeder
             DeviceSchemaSeeder::class,
             DeviceControlSeeder::class,
             DeviceTelemetrySeeder::class,
+            IoTDashboardSeeder::class,
         ]);
     }
 }
