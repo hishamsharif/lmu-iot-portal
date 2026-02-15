@@ -138,178 +138,178 @@ class IoTDashboard extends Page
 
             ActionGroup::make([
                 Action::make('addLineWidget')
-                ->label('Add Line Widget')
-                ->icon(Heroicon::OutlinedPresentationChartLine)
-                ->visible(fn (): bool => $this->selectedDashboard() instanceof IoTDashboardModel)
-                ->slideOver()
-                ->schema($this->lineWidgetFormSchema())
-                ->action(function (array $data): void {
-                    $dashboard = $this->selectedDashboard();
+                    ->label('Add Line Widget')
+                    ->icon(Heroicon::OutlinedPresentationChartLine)
+                    ->visible(fn (): bool => $this->selectedDashboard() instanceof IoTDashboardModel)
+                    ->slideOver()
+                    ->schema($this->lineWidgetFormSchema())
+                    ->action(function (array $data): void {
+                        $dashboard = $this->selectedDashboard();
 
-                    if (! $dashboard instanceof IoTDashboardModel) {
+                        if (! $dashboard instanceof IoTDashboardModel) {
+                            Notification::make()
+                                ->title('Select a dashboard first')
+                                ->warning()
+                                ->send();
+
+                            return;
+                        }
+
+                        $resolved = $this->resolveWidgetInput($dashboard, $data);
+
+                        if ($resolved === null) {
+                            return;
+                        }
+
+                        $maxSequence = $dashboard->widgets()->max('sequence');
+                        $nextSequence = (is_numeric($maxSequence) ? (int) $maxSequence : 0) + 1;
+
+                        IoTDashboardWidget::query()->create([
+                            'iot_dashboard_id' => $dashboard->id,
+                            'device_id' => $resolved['device']->id,
+                            'schema_version_topic_id' => $resolved['topic']->id,
+                            'type' => self::WIDGET_TYPE_LINE_CHART,
+                            'title' => trim((string) $data['title']),
+                            'series_config' => $resolved['series_configuration'],
+                            'options' => $this->buildWidgetOptions($data),
+                            'use_websocket' => (bool) ($data['use_websocket'] ?? true),
+                            'use_polling' => (bool) ($data['use_polling'] ?? true),
+                            'polling_interval_seconds' => (int) ($data['polling_interval_seconds'] ?? 10),
+                            'lookback_minutes' => (int) ($data['lookback_minutes'] ?? 120),
+                            'max_points' => (int) ($data['max_points'] ?? 240),
+                            'sequence' => $nextSequence,
+                        ]);
+
                         Notification::make()
-                            ->title('Select a dashboard first')
-                            ->warning()
+                            ->title('Line widget added')
+                            ->body('The chart now listens to the selected device telemetry stream.')
+                            ->success()
                             ->send();
 
-                        return;
-                    }
-
-                    $resolved = $this->resolveWidgetInput($dashboard, $data);
-
-                    if ($resolved === null) {
-                        return;
-                    }
-
-                    $maxSequence = $dashboard->widgets()->max('sequence');
-                    $nextSequence = (is_numeric($maxSequence) ? (int) $maxSequence : 0) + 1;
-
-                    IoTDashboardWidget::query()->create([
-                        'iot_dashboard_id' => $dashboard->id,
-                        'device_id' => $resolved['device']->id,
-                        'schema_version_topic_id' => $resolved['topic']->id,
-                        'type' => self::WIDGET_TYPE_LINE_CHART,
-                        'title' => trim((string) $data['title']),
-                        'series_config' => $resolved['series_configuration'],
-                        'options' => $this->buildWidgetOptions($data),
-                        'use_websocket' => (bool) ($data['use_websocket'] ?? true),
-                        'use_polling' => (bool) ($data['use_polling'] ?? true),
-                        'polling_interval_seconds' => (int) ($data['polling_interval_seconds'] ?? 10),
-                        'lookback_minutes' => (int) ($data['lookback_minutes'] ?? 120),
-                        'max_points' => (int) ($data['max_points'] ?? 240),
-                        'sequence' => $nextSequence,
-                    ]);
-
-                    Notification::make()
-                        ->title('Line widget added')
-                        ->body('The chart now listens to the selected device telemetry stream.')
-                        ->success()
-                        ->send();
-
-                    $this->refreshDashboardComputedProperties();
-                    $this->dispatchWidgetBootstrapEvent();
-                }),
+                        $this->refreshDashboardComputedProperties();
+                        $this->dispatchWidgetBootstrapEvent();
+                    }),
 
                 Action::make('addBarWidget')
-                ->label('Add Bar Widget')
-                ->icon(Heroicon::OutlinedPresentationChartLine)
-                ->visible(fn (): bool => $this->selectedDashboard() instanceof IoTDashboardModel)
-                ->slideOver()
-                ->schema($this->barWidgetFormSchema())
-                ->action(function (array $data): void {
-                    $dashboard = $this->selectedDashboard();
+                    ->label('Add Bar Widget')
+                    ->icon(Heroicon::OutlinedPresentationChartLine)
+                    ->visible(fn (): bool => $this->selectedDashboard() instanceof IoTDashboardModel)
+                    ->slideOver()
+                    ->schema($this->barWidgetFormSchema())
+                    ->action(function (array $data): void {
+                        $dashboard = $this->selectedDashboard();
 
-                    if (! $dashboard instanceof IoTDashboardModel) {
+                        if (! $dashboard instanceof IoTDashboardModel) {
+                            Notification::make()
+                                ->title('Select a dashboard first')
+                                ->warning()
+                                ->send();
+
+                            return;
+                        }
+
+                        $parameterKey = is_string($data['parameter_key'] ?? null)
+                            ? (string) $data['parameter_key']
+                            : null;
+                        $resolved = $this->resolveWidgetInput($dashboard, [
+                            ...$data,
+                            'parameter_keys' => $parameterKey === null ? [] : [$parameterKey],
+                        ]);
+
+                        if ($resolved === null) {
+                            return;
+                        }
+
+                        $maxSequence = $dashboard->widgets()->max('sequence');
+                        $nextSequence = (is_numeric($maxSequence) ? (int) $maxSequence : 0) + 1;
+
+                        IoTDashboardWidget::query()->create([
+                            'iot_dashboard_id' => $dashboard->id,
+                            'device_id' => $resolved['device']->id,
+                            'schema_version_topic_id' => $resolved['topic']->id,
+                            'type' => self::WIDGET_TYPE_BAR_CHART,
+                            'title' => trim((string) $data['title']),
+                            'series_config' => $resolved['series_configuration'],
+                            'options' => $this->buildWidgetOptions([
+                                ...$data,
+                                'bar_interval' => $this->sanitizeBarInterval($data['bar_interval'] ?? BarInterval::Hourly->value)->value,
+                            ]),
+                            'use_websocket' => (bool) ($data['use_websocket'] ?? false),
+                            'use_polling' => (bool) ($data['use_polling'] ?? true),
+                            'polling_interval_seconds' => (int) ($data['polling_interval_seconds'] ?? 60),
+                            'lookback_minutes' => (int) ($data['lookback_minutes'] ?? 43200),
+                            'max_points' => (int) ($data['max_points'] ?? 31),
+                            'sequence' => $nextSequence,
+                        ]);
+
                         Notification::make()
-                            ->title('Select a dashboard first')
-                            ->warning()
+                            ->title('Bar widget added')
+                            ->body('The chart now aggregates energy consumption by hour/day.')
+                            ->success()
                             ->send();
 
-                        return;
-                    }
-
-                    $parameterKey = is_string($data['parameter_key'] ?? null)
-                        ? (string) $data['parameter_key']
-                        : null;
-                    $resolved = $this->resolveWidgetInput($dashboard, [
-                        ...$data,
-                        'parameter_keys' => $parameterKey === null ? [] : [$parameterKey],
-                    ]);
-
-                    if ($resolved === null) {
-                        return;
-                    }
-
-                    $maxSequence = $dashboard->widgets()->max('sequence');
-                    $nextSequence = (is_numeric($maxSequence) ? (int) $maxSequence : 0) + 1;
-
-                    IoTDashboardWidget::query()->create([
-                        'iot_dashboard_id' => $dashboard->id,
-                        'device_id' => $resolved['device']->id,
-                        'schema_version_topic_id' => $resolved['topic']->id,
-                        'type' => self::WIDGET_TYPE_BAR_CHART,
-                        'title' => trim((string) $data['title']),
-                        'series_config' => $resolved['series_configuration'],
-                        'options' => $this->buildWidgetOptions([
-                            ...$data,
-                            'bar_interval' => $this->sanitizeBarInterval($data['bar_interval'] ?? BarInterval::Hourly->value)->value,
-                        ]),
-                        'use_websocket' => (bool) ($data['use_websocket'] ?? false),
-                        'use_polling' => (bool) ($data['use_polling'] ?? true),
-                        'polling_interval_seconds' => (int) ($data['polling_interval_seconds'] ?? 60),
-                        'lookback_minutes' => (int) ($data['lookback_minutes'] ?? 43200),
-                        'max_points' => (int) ($data['max_points'] ?? 31),
-                        'sequence' => $nextSequence,
-                    ]);
-
-                    Notification::make()
-                        ->title('Bar widget added')
-                        ->body('The chart now aggregates energy consumption by hour/day.')
-                        ->success()
-                        ->send();
-
-                    $this->refreshDashboardComputedProperties();
-                    $this->dispatchWidgetBootstrapEvent();
-                }),
+                        $this->refreshDashboardComputedProperties();
+                        $this->dispatchWidgetBootstrapEvent();
+                    }),
 
                 Action::make('addGaugeWidget')
-                ->label('Add Gauge Widget')
-                ->icon(Heroicon::OutlinedPresentationChartLine)
-                ->visible(fn (): bool => $this->selectedDashboard() instanceof IoTDashboardModel)
-                ->slideOver()
-                ->schema($this->gaugeWidgetFormSchema())
-                ->action(function (array $data): void {
-                    $dashboard = $this->selectedDashboard();
+                    ->label('Add Gauge Widget')
+                    ->icon(Heroicon::OutlinedPresentationChartLine)
+                    ->visible(fn (): bool => $this->selectedDashboard() instanceof IoTDashboardModel)
+                    ->slideOver()
+                    ->schema($this->gaugeWidgetFormSchema())
+                    ->action(function (array $data): void {
+                        $dashboard = $this->selectedDashboard();
 
-                    if (! $dashboard instanceof IoTDashboardModel) {
+                        if (! $dashboard instanceof IoTDashboardModel) {
+                            Notification::make()
+                                ->title('Select a dashboard first')
+                                ->warning()
+                                ->send();
+
+                            return;
+                        }
+
+                        $parameterKey = is_string($data['parameter_key'] ?? null)
+                            ? (string) $data['parameter_key']
+                            : null;
+                        $resolved = $this->resolveWidgetInput($dashboard, [
+                            ...$data,
+                            'parameter_keys' => $parameterKey === null ? [] : [$parameterKey],
+                        ]);
+
+                        if ($resolved === null) {
+                            return;
+                        }
+
+                        $maxSequence = $dashboard->widgets()->max('sequence');
+                        $nextSequence = (is_numeric($maxSequence) ? (int) $maxSequence : 0) + 1;
+
+                        IoTDashboardWidget::query()->create([
+                            'iot_dashboard_id' => $dashboard->id,
+                            'device_id' => $resolved['device']->id,
+                            'schema_version_topic_id' => $resolved['topic']->id,
+                            'type' => self::WIDGET_TYPE_GAUGE_CHART,
+                            'title' => trim((string) $data['title']),
+                            'series_config' => $resolved['series_configuration'],
+                            'options' => $this->buildWidgetOptions($data),
+                            'use_websocket' => (bool) ($data['use_websocket'] ?? true),
+                            'use_polling' => (bool) ($data['use_polling'] ?? true),
+                            'polling_interval_seconds' => (int) ($data['polling_interval_seconds'] ?? 10),
+                            'lookback_minutes' => (int) ($data['lookback_minutes'] ?? 180),
+                            'max_points' => 1,
+                            'sequence' => $nextSequence,
+                        ]);
+
                         Notification::make()
-                            ->title('Select a dashboard first')
-                            ->warning()
+                            ->title('Gauge widget added')
+                            ->body('The gauge now displays a live numeric telemetry value.')
+                            ->success()
                             ->send();
 
-                        return;
-                    }
-
-                    $parameterKey = is_string($data['parameter_key'] ?? null)
-                        ? (string) $data['parameter_key']
-                        : null;
-                    $resolved = $this->resolveWidgetInput($dashboard, [
-                        ...$data,
-                        'parameter_keys' => $parameterKey === null ? [] : [$parameterKey],
-                    ]);
-
-                    if ($resolved === null) {
-                        return;
-                    }
-
-                    $maxSequence = $dashboard->widgets()->max('sequence');
-                    $nextSequence = (is_numeric($maxSequence) ? (int) $maxSequence : 0) + 1;
-
-                    IoTDashboardWidget::query()->create([
-                        'iot_dashboard_id' => $dashboard->id,
-                        'device_id' => $resolved['device']->id,
-                        'schema_version_topic_id' => $resolved['topic']->id,
-                        'type' => self::WIDGET_TYPE_GAUGE_CHART,
-                        'title' => trim((string) $data['title']),
-                        'series_config' => $resolved['series_configuration'],
-                        'options' => $this->buildWidgetOptions($data),
-                        'use_websocket' => (bool) ($data['use_websocket'] ?? true),
-                        'use_polling' => (bool) ($data['use_polling'] ?? true),
-                        'polling_interval_seconds' => (int) ($data['polling_interval_seconds'] ?? 10),
-                        'lookback_minutes' => (int) ($data['lookback_minutes'] ?? 180),
-                        'max_points' => 1,
-                        'sequence' => $nextSequence,
-                    ]);
-
-                    Notification::make()
-                        ->title('Gauge widget added')
-                        ->body('The gauge now displays a live numeric telemetry value.')
-                        ->success()
-                        ->send();
-
-                    $this->refreshDashboardComputedProperties();
-                    $this->dispatchWidgetBootstrapEvent();
-                }),
+                        $this->refreshDashboardComputedProperties();
+                        $this->dispatchWidgetBootstrapEvent();
+                    }),
             ])
                 ->label('Add Widget')
                 ->icon(Heroicon::OutlinedPlus)

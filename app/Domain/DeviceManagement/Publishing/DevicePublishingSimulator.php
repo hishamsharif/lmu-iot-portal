@@ -92,6 +92,7 @@ final readonly class DevicePublishingSimulator
     }
 
     /**
+     * @param  array<string, float>  $counterState
      * @return array<string, mixed>
      */
     private function generateRandomPayload(SchemaVersionTopic $topic, array &$counterState): array
@@ -111,6 +112,9 @@ final readonly class DevicePublishingSimulator
         return $payload;
     }
 
+    /**
+     * @param  array<string, float>  $counterState
+     */
     private function generateRandomValue(ParameterDefinition $parameter, array &$counterState): mixed
     {
         $rules = $parameter->resolvedValidationRules();

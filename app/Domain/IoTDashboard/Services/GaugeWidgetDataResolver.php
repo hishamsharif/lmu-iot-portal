@@ -7,6 +7,7 @@ namespace App\Domain\IoTDashboard\Services;
 use App\Domain\IoTDashboard\Models\IoTDashboardWidget;
 use App\Domain\Telemetry\Models\DeviceTelemetryLog;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 class GaugeWidgetDataResolver
@@ -94,7 +95,8 @@ class GaugeWidgetDataResolver
             }
 
             $value = $this->extractNumericValue($log->transformed_values, $parameterKey);
-            $timestamp = $log->recorded_at?->toIso8601String();
+            $recordedAt = $this->normalizeRecordedAt($log->recorded_at);
+            $timestamp = $recordedAt?->toIso8601String();
 
             if ($value === null || ! is_string($timestamp)) {
                 continue;
@@ -109,10 +111,7 @@ class GaugeWidgetDataResolver
         return null;
     }
 
-    /**
-     * @param  array<string, mixed>|null  $values
-     */
-    private function extractNumericValue(?array $values, string $parameterKey): int|float|null
+    private function extractNumericValue(mixed $values, string $parameterKey): int|float|null
     {
         if (! is_array($values)) {
             return null;
@@ -122,6 +121,19 @@ class GaugeWidgetDataResolver
 
         if (is_numeric($value)) {
             return $value + 0;
+        }
+
+        return null;
+    }
+
+    private function normalizeRecordedAt(mixed $recordedAt): ?Carbon
+    {
+        if ($recordedAt instanceof Carbon) {
+            return $recordedAt;
+        }
+
+        if (is_string($recordedAt) && trim($recordedAt) !== '') {
+            return Carbon::parse($recordedAt);
         }
 
         return null;

@@ -108,17 +108,13 @@ class BarChartWidgetDataResolver
                 continue;
             }
 
-            $recordedAt = $log->recorded_at;
+            $recordedAt = $this->normalizeRecordedAt($log->recorded_at);
 
             if (! $recordedAt instanceof Carbon) {
                 continue;
             }
 
             $bucketStart = $this->resolveBucketStart($recordedAt, $interval)->toIso8601String();
-
-            if (! is_string($bucketStart)) {
-                continue;
-            }
 
             if (! array_key_exists($bucketStart, $buckets)) {
                 $buckets[$bucketStart] = [
@@ -154,6 +150,19 @@ class BarChartWidgetDataResolver
         return $points;
     }
 
+    private function normalizeRecordedAt(mixed $recordedAt): ?Carbon
+    {
+        if ($recordedAt instanceof Carbon) {
+            return $recordedAt;
+        }
+
+        if (is_string($recordedAt) && trim($recordedAt) !== '') {
+            return Carbon::parse($recordedAt);
+        }
+
+        return null;
+    }
+
     private function resolveBucketStart(Carbon $recordedAt, BarInterval $interval): Carbon
     {
         $bucketStart = $recordedAt->copy();
@@ -164,10 +173,7 @@ class BarChartWidgetDataResolver
         };
     }
 
-    /**
-     * @param  array<string, mixed>|null  $values
-     */
-    private function extractNumericValue(?array $values, string $parameterKey): ?float
+    private function extractNumericValue(mixed $values, string $parameterKey): ?float
     {
         if (! is_array($values)) {
             return null;
