@@ -488,6 +488,7 @@ class DeviceControlDashboard extends Page implements HasForms, HasTable
      */
     public function updateControlValuesFromState(array $payload): void
     {
+        $payload = $this->extractControlPayload($payload);
         $changed = false;
 
         foreach ($this->controlSchema as $control) {
@@ -550,7 +551,7 @@ class DeviceControlDashboard extends Page implements HasForms, HasTable
         }
 
         foreach ($this->initialDeviceStates as $state) {
-            $payload = $state['payload'];
+            $payload = $this->extractControlPayload($state['payload']);
 
             if ($payload === []) {
                 continue;
@@ -576,6 +577,24 @@ class DeviceControlDashboard extends Page implements HasForms, HasTable
         }
 
         $this->normalizeControlValuesForUi();
+    }
+
+    /**
+     * Normalize known device-state payload shapes for control hydration.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function extractControlPayload(array $payload): array
+    {
+        $values = $payload['values'] ?? null;
+
+        if (is_array($values)) {
+            /** @var array<string, mixed> $values */
+            return $values;
+        }
+
+        return $payload;
     }
 
     /**

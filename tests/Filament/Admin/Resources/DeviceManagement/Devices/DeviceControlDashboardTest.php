@@ -393,6 +393,20 @@ it('updates control values from incoming device state payload', function (): voi
     expect($component->get('controlValues.power'))->toBe('on');
 });
 
+it('updates control values from incoming wrapped device state payload', function (): void {
+    $device = createTestDeviceForDashboard();
+
+    $component = livewire(DeviceControlDashboard::class, ['record' => $device->id]);
+
+    expect($component->get('controlValues.power'))->toBe('off');
+
+    $component->call('updateControlValuesFromState', [
+        'values' => ['power' => 'on'],
+    ]);
+
+    expect($component->get('controlValues.power'))->toBe('on');
+});
+
 it('ignores unknown keys in state payload during update', function (): void {
     $device = createTestDeviceForDashboard();
 
@@ -413,6 +427,20 @@ it('applies initial device state to control values on mount', function (): void 
     bindFakeDeviceStateStoreForDashboard([
         'topic' => 'devices/pump-42/state',
         'payload' => ['power' => 'on'],
+        'stored_at' => '2025-01-15T10:30:00+00:00',
+    ]);
+
+    $component = livewire(DeviceControlDashboard::class, ['record' => $device->id]);
+
+    expect($component->get('controlValues.power'))->toBe('on');
+});
+
+it('applies wrapped initial device state values to control values on mount', function (): void {
+    $device = createTestDeviceForDashboard();
+
+    bindFakeDeviceStateStoreForDashboard([
+        'topic' => 'devices/pump-42/state',
+        'payload' => ['values' => ['power' => 'on']],
         'stored_at' => '2025-01-15T10:30:00+00:00',
     ]);
 

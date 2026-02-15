@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use App\Domain\DeviceManagement\Publishing\Mqtt\PhpMqttCommandPublisher;
 
-it('uses a fixed client ID with clean session in the CONNECT packet', function (): void {
+it('uses a fixed client ID with persistent session in the CONNECT packet', function (): void {
     $publisher = new PhpMqttCommandPublisher;
     $stream = fopen('php://memory', 'r+');
 
@@ -20,7 +20,7 @@ it('uses a fixed client ID with clean session in the CONNECT packet', function (
     $connectFlagsByte = ord($packet[9]);
     $cleanSessionBit = ($connectFlagsByte >> 1) & 0x01;
 
-    expect($cleanSessionBit)->toBe(1, 'Clean Session flag must be 1 to prevent $MQTT_sess corruption');
+    expect($cleanSessionBit)->toBe(0, 'Clean Session flag must be 0 to keep a stable $MQTT_sess record');
 
     $clientIdLengthOffset = 12;
     $clientIdLength = unpack('n', substr($packet, $clientIdLengthOffset, 2))[1];
