@@ -90,30 +90,61 @@ npm run build
 npm run dev
 ```
 
-### 6. Start the NATS Broker (Docker)
+### 6. Start the Platform Services (Recommended)
 
-The platform uses [NATS](https://nats.io/) as the message broker with JetStream (persistence) and an MQTT bridge for IoT device connectivity.
+Use the unified runner to start all required local services:
+
+```bash
+./scripts/platform-up.sh
+
+# Optional: include Vite for hot reload
+./scripts/platform-up.sh --vite
+```
+
+Composer aliases are also available:
+
+```bash
+composer platform:up
+composer platform:up:vite
+```
+
+`platform-up` starts:
+- NATS broker (Docker)
+- Laravel Reverb (`php artisan reverb:start --port=8090`)
+- Device state listener (`php artisan iot:listen-for-device-states`)
+- Device presence listener (`php artisan iot:listen-for-device-presence`)
+- Telemetry ingestion listener (`php artisan iot:ingest-telemetry`)
+- Horizon (`php artisan horizon`)
+- Scheduler worker (`php artisan schedule:work`)
+- Vite (`npm run dev`) only when `--vite` is passed
+
+To stop everything:
+
+```bash
+./scripts/platform-down.sh
+
+# Or:
+composer platform:down
+```
+
+### 7. Start Services Manually (Alternative)
+
+If you prefer to run services individually:
 
 ```bash
 docker compose -f docker-compose.nats.yml up -d
+php artisan reverb:start --port=8090
+php artisan iot:listen-for-device-states
+php artisan iot:listen-for-device-presence
+php artisan iot:ingest-telemetry
+php artisan horizon
+php artisan schedule:work
 ```
 
-This starts a NATS server with:
-
-| Service | Host Port | Description |
-|---------|-----------|-------------|
-| NATS Client | `4223` | PHP application connects here |
-| MQTT Bridge | `1883` | IoT devices connect here via MQTT |
-| Monitoring | `8223` | HTTP monitoring/health endpoint |
-
-Verify the broker is running:
+Optional frontend hot reload:
 
 ```bash
-# Check container status
-docker ps --filter name=lmu-iot-portal-nats
-
-# Check monitoring endpoint
-curl http://localhost:8223/varz
+npm run dev
 ```
 
 The NATS configuration is at `docker/nats/nats.conf` and includes:
@@ -121,34 +152,7 @@ The NATS configuration is at `docker/nats/nats.conf` and includes:
 - MQTT support on port 1883
 - HTTP monitoring on port 8222 (mapped to host 8223)
 
-### 7. Start Laravel Reverb (WebSocket Server)
-
-Reverb provides real-time WebSocket communication for the device control dashboard:
-
-```bash
-php artisan reverb:start --port=8090
-```
-
-The `.env` is pre-configured for Reverb:
-
-```dotenv
-BROADCAST_CONNECTION=reverb
-REVERB_HOST=127.0.0.1
-REVERB_PORT=8090
-REVERB_APP_KEY=lmu-iot-portal-key
-```
-
-### 8. Start the Device State Listener
-
-This long-running command subscribes to all device state messages from NATS and broadcasts them to the dashboard via Reverb:
-
-```bash
-php artisan iot:listen-for-device-states
-```
-
-Options: `--host=127.0.0.1` `--port=4223` (defaults match the Docker NATS setup).
-
-### 9. Configure Git Workflow (Contributors)
+### 8. Configure Git Workflow (Contributors)
 
 ```bash
 ./scripts/setup-dev.sh
@@ -176,10 +180,16 @@ For full functionality, you need these services running:
 
 | Service | Command | Purpose |
 |---------|---------|---------|
+| Unified Startup (recommended) | `./scripts/platform-up.sh` | Starts full local stack in one command |
+| Unified Startup + Vite | `./scripts/platform-up.sh --vite` | Full stack + frontend hot reload |
+| Unified Shutdown | `./scripts/platform-down.sh` | Stops managed processes + NATS container |
 | NATS Broker | `docker compose -f docker-compose.nats.yml up -d` | Message broker (MQTT + NATS) |
 | Laravel Reverb | `php artisan reverb:start --port=8090` | WebSocket server for real-time UI |
-| Device Listener | `php artisan iot:listen-for-device-states` | Bridges device state → dashboard |
-| Horizon | `php artisan horizon` | Queue worker (telemetry, simulations) |
+| Device State Listener | `php artisan iot:listen-for-device-states` | Bridges device state to dashboard |
+| Device Presence Listener | `php artisan iot:listen-for-device-presence` | Tracks online/offline via presence topics |
+| Telemetry Ingestion Listener | `php artisan iot:ingest-telemetry` | Subscribes to inbound telemetry and queues processing |
+| Horizon | `php artisan horizon` | Queue worker (default + ingestion + simulations) |
+| Scheduler Worker | `php artisan schedule:work` | Runs scheduled maintenance jobs continuously |
 | Vite (dev only) | `npm run dev` | Frontend hot reload |
 
 ---

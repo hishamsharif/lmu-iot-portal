@@ -245,3 +245,28 @@ it('marks the device as online when a state message is reconciled', function ():
         return $event->deviceId === $device->id && $event->connectionState === 'online';
     });
 });
+
+it('ignores internal mqtt bridge topics without changing device presence', function (): void {
+    config(['broadcasting.default' => 'null']);
+    Event::fake([DeviceConnectionChanged::class]);
+    bindFakeStateStore();
+
+    [$device] = createDeviceWithLinkedFeedbackTopics();
+
+    $device->updateQuietly(['connection_state' => 'offline', 'last_seen_at' => null]);
+
+    /** @var DeviceFeedbackReconciler $reconciler */
+    $reconciler = app(DeviceFeedbackReconciler::class);
+
+    $result = $reconciler->reconcileInboundMessage('$MQTT/JSA/example/internal/topic', [
+        'stream' => '$MQTT_sess',
+    ]);
+
+    $device->refresh();
+
+    expect($result)->toBeNull()
+        ->and($device->connection_state)->toBe('offline')
+        ->and($device->last_seen_at)->toBeNull();
+
+    Event::assertNotDispatched(DeviceConnectionChanged::class);
+});

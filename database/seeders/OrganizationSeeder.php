@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Database\Seeders;
 
 use App\Domain\Shared\Models\Organization;
@@ -9,41 +11,57 @@ use Spatie\Permission\Models\Permission;
 
 class OrganizationSeeder extends Seeder
 {
+    private const DEFAULT_ORGANIZATION_NAME = 'Main Organization';
+
+    private const DEFAULT_ORGANIZATION_SLUG = 'main-organization';
+
+    private const DEFAULT_ORGANIZATION_ADMIN_EMAIL = 'org-admin@admin.com';
+
     /**
      * Run the database seeds.
      */
     public function run(): void
     {
-        Organization::factory()
-            ->times(10)
-            ->create()
-            ->each(function (Organization $organization) {
-                $previousPermissionsTeamId = getPermissionsTeamId();
-                setPermissionsTeamId($organization->id);
+        $organization = Organization::query()->firstOrCreate(
+            ['slug' => self::DEFAULT_ORGANIZATION_SLUG],
+            ['name' => self::DEFAULT_ORGANIZATION_NAME],
+        );
 
-                try {
-                    /** @var User $adminUser */
-                    $adminUser = User::factory()->create();
-                    $organization->users()->attach($adminUser);
+        Organization::query()
+            ->where('id', '!=', $organization->id)
+            ->delete();
 
-                    $superAdmin = User::find(1);
-                    $organization->users()->attach($superAdmin);
+        $previousPermissionsTeamId = getPermissionsTeamId();
+        setPermissionsTeamId($organization->id);
 
-                    $role = $organization->roles()->create([
-                        'name' => 'admin',
-                        'guard_name' => 'web',
-                    ]);
+        try {
+            /** @var User $adminUser */
+            $adminUser = User::query()->firstOrCreate(
+                ['email' => self::DEFAULT_ORGANIZATION_ADMIN_EMAIL],
+                [
+                    'name' => 'Organization Admin',
+                    'password' => 'password',
+                    'is_super_admin' => false,
+                ],
+            );
 
-                    $permissions = Permission::all()->pluck('name')->toArray();
-                    $role->syncPermissions($permissions);
+            $organization->users()->syncWithoutDetaching([$adminUser->id]);
 
-                    $adminUser->assignRole($role);
+            $superAdmin = User::query()->find(1);
+            if ($superAdmin instanceof User) {
+                $organization->users()->syncWithoutDetaching([$superAdmin->id]);
+            }
 
-                    $users = User::factory()->count(5)->create();
-                    $organization->users()->attach($users);
-                } finally {
-                    setPermissionsTeamId($previousPermissionsTeamId);
-                }
-            });
+            $role = $organization->roles()->firstOrCreate([
+                'name' => 'admin',
+                'guard_name' => 'web',
+            ]);
+
+            $permissions = Permission::query()->pluck('name')->all();
+            $role->syncPermissions($permissions);
+            $adminUser->assignRole($role);
+        } finally {
+            setPermissionsTeamId($previousPermissionsTeamId);
+        }
     }
 }

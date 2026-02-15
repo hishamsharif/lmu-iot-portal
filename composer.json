@@ -54,6 +54,15 @@
         }
     },
     "scripts": {
+        "platform:up": [
+            "./scripts/platform-up.sh"
+        ],
+        "platform:up:vite": [
+            "./scripts/platform-up.sh --vite"
+        ],
+        "platform:down": [
+            "./scripts/platform-down.sh"
+        ],
         "x": [
             "vendor/bin/pint",
             "vendor/bin/phpstan analyse --memory-limit=2G",

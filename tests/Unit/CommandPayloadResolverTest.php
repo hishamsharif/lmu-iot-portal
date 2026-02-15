@@ -92,8 +92,8 @@ it('omits default button widget values unless they are explicitly triggered', fu
 
     ParameterDefinition::factory()->create([
         'schema_version_topic_id' => $topic->id,
-        'key' => 'apply_changes',
-        'json_path' => 'apply_changes',
+        'key' => 'send_now',
+        'json_path' => 'send_now',
         'type' => ParameterDataType::Boolean,
         'default_value' => false,
         'required' => false,
@@ -110,12 +110,12 @@ it('omits default button widget values unless they are explicitly triggered', fu
 
     $defaultButton = $resolver->resolveFromControls($topic, [
         'power' => true,
-        'apply_changes' => false,
+        'send_now' => false,
     ]);
 
     $triggeredButton = $resolver->resolveFromControls($topic, [
         'power' => true,
-        'apply_changes' => true,
+        'send_now' => true,
     ]);
 
     expect($defaultButton['errors'])->toBe([])
@@ -125,6 +125,6 @@ it('omits default button widget values unless they are explicitly triggered', fu
         ->and($triggeredButton['errors'])->toBe([])
         ->and($triggeredButton['payload'])->toBe([
             'power' => true,
-            'apply_changes' => true,
+            'send_now' => true,
         ]);
 });

@@ -627,7 +627,7 @@ class DeviceSchemaSeeder extends Seeder
 
         $this->upsertFirmwareTemplate(
             version: $rgbVersion,
-            template: $this->loadFirmwareTemplate('plan/DeviceControlArchitecture/esp32-rgb-light/esp32-rgb-light.ino'),
+            template: $this->loadFirmwareTemplate('plan/DeviceControlArchitecture/esp32-rgb-light/esp-32-rgb-light.ino'),
         );
 
         $rgbStateTopic = SchemaVersionTopic::firstOrCreate([
@@ -776,20 +776,10 @@ class DeviceSchemaSeeder extends Seeder
             'is_active' => true,
         ]);
 
-        ParameterDefinition::firstOrCreate([
-            'schema_version_topic_id' => $rgbControlTopic->id,
-            'key' => 'apply_changes',
-        ], [
-            'label' => 'Apply Changes',
-            'json_path' => 'apply_changes',
-            'type' => ParameterDataType::Boolean,
-            'required' => false,
-            'is_critical' => false,
-            'default_value' => false,
-            'control_ui' => ['widget' => 'button', 'button_value' => true],
-            'sequence' => 5,
-            'is_active' => true,
-        ]);
+        ParameterDefinition::query()
+            ->where('schema_version_topic_id', $rgbControlTopic->id)
+            ->where('key', 'apply_changes')
+            ->delete();
     }
 
     private function upsertFirmwareTemplate(DeviceSchemaVersion $version, ?string $template): void

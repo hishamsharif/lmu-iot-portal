@@ -22,6 +22,9 @@ yarn-error.log
 /.history
 /.tmp
 /test-results
+/storage/platform/*.pid
+/storage/platform/manifest
+/storage/logs/platform/*.log
 
 /caddy
 frankenphp

@@ -2,6 +2,26 @@
 
 ## Modules
 
+### Authorization
+
+- [01 - Overview](authorization/01-overview.md)
+- [02 - Architecture](authorization/02-architecture.md)
+
+### Shared
+
+- [01 - Overview](shared/01-overview.md)
+- [02 - Architecture](shared/02-architecture.md)
+
+### Device Management
+
+- [01 - Overview](device-management/01-overview.md)
+- [02 - Architecture](device-management/02-architecture.md)
+
+### Device Schema
+
+- [01 - Overview](device-schema/01-overview.md)
+- [02 - Architecture](device-schema/02-architecture.md)
+
 ### Device Control
 
 - [01 - Overview](device-control/01-overview.md)
@@ -12,6 +32,21 @@
 - [06 - Presence Tracking](device-control/06-presence-tracking.md)
 - [07 - Artisan Commands](device-control/07-artisan-commands.md)
 - [08 - Realtime Events and UI](device-control/08-realtime-events-and-ui.md)
+
+### Data Ingestion
+
+- [01 - Overview](data-ingestion/01-overview.md)
+- [02 - Architecture](data-ingestion/02-architecture.md)
+
+### Telemetry
+
+- [01 - Overview](telemetry/01-overview.md)
+- [02 - Architecture](telemetry/02-architecture.md)
+
+### IoT Dashboard
+
+- [01 - Overview](iot-dashboard/01-overview.md)
+- [02 - Architecture](iot-dashboard/02-architecture.md)
 
 ### Automation
 

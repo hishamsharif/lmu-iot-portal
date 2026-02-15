@@ -45,10 +45,15 @@ const char* TOPIC_PRESENCE = "devices/{{DEVICE_ID}}/presence";
 const uint8_t PIN_RED               = 15;
 const uint8_t PIN_GREEN             = 16;
 const uint8_t PIN_BLUE              = 17;
+const uint8_t PIN_WIFI_STATUS_LED   = 12;
+const uint8_t PIN_MQTT_STATUS_LED   = 13;
 const uint8_t PIN_BUTTON_POWER      = 4;
 const uint8_t PIN_BUTTON_COLOR      = 5;
 const uint8_t PIN_BUTTON_EFFECT     = 6;
 const uint8_t PIN_BUTTON_BRIGHTNESS = 7;
+
+const bool WIFI_LED_ACTIVE_HIGH = true;
+const bool MQTT_LED_ACTIVE_HIGH = true;
 
 const uint8_t CH_RED      = 0;
 const uint8_t CH_GREEN    = 1;
@@ -63,6 +68,9 @@ const uint8_t BRIGHTNESS_STEP = 20;
 
 const unsigned long BUTTON_DEBOUNCE_MS = 50;
 const unsigned long PUBLISH_DELAY_MS   = 1500;
+const unsigned long MQTT_CONNECTING_INDICATION_MS = 600;
+const unsigned long MQTT_SUBSCRIPTION_REFRESH_MS = 15000;
+const unsigned long MQTT_SUBSCRIPTION_RETRY_MS = 2000;
 
 const char* COLOR_PRESETS[] = {
   "#FF0000",
@@ -109,6 +117,31 @@ ButtonState btnBrightness = { HIGH, HIGH, 0 };
 
 bool publishPending = false;
 unsigned long lastPressTime = 0;
+bool controlTopicSubscribed = false;
+unsigned long lastControlSubscriptionAttemptMs = 0;
+
+enum class WifiIndicatorState : uint8_t {
+  Off,
+  Connecting,
+  Connected
+};
+
+enum class MqttIndicatorState : uint8_t {
+  Off,
+  Connecting,
+  Backoff,
+  Connected
+};
+
+WifiIndicatorState wifiIndicatorState = WifiIndicatorState::Off;
+MqttIndicatorState mqttIndicatorState = MqttIndicatorState::Off;
+
+unsigned long wifiIndicatorLastTick = 0;
+bool wifiIndicatorBlinkOn = false;
+
+unsigned long mqttIndicatorLastTick = 0;
+bool mqttIndicatorBlinkOn = false;
+uint8_t mqttBackoffPhase = 0;
 
 /* ----------------------- Effect State ----------------------- */
 
@@ -119,6 +152,159 @@ uint8_t breatheValue = 0;     // 0..255
 int breatheDirection = 1;     // +1 or -1
 
 /* ----------------------- Helpers ----------------------- */
+
+void writeWifiLed(bool on) {
+  bool gpioLevel = WIFI_LED_ACTIVE_HIGH ? on : !on;
+  digitalWrite(PIN_WIFI_STATUS_LED, gpioLevel ? HIGH : LOW);
+}
+
+void writeMqttLed(bool on) {
+  bool gpioLevel = MQTT_LED_ACTIVE_HIGH ? on : !on;
+  digitalWrite(PIN_MQTT_STATUS_LED, gpioLevel ? HIGH : LOW);
+}
+
+void setWifiIndicatorState(WifiIndicatorState state, bool resetPhase = true) {
+  if (!resetPhase && wifiIndicatorState == state) {
+    return;
+  }
+
+  wifiIndicatorState = state;
+
+  if (resetPhase) {
+    wifiIndicatorLastTick = millis();
+    wifiIndicatorBlinkOn = true;
+  }
+
+  if (wifiIndicatorState == WifiIndicatorState::Off) {
+    writeWifiLed(false);
+    return;
+  }
+
+  if (wifiIndicatorState == WifiIndicatorState::Connected) {
+    writeWifiLed(true);
+    return;
+  }
+
+  writeWifiLed(wifiIndicatorBlinkOn);
+}
+
+void setMqttIndicatorState(MqttIndicatorState state, bool resetPhase = true) {
+  if (!resetPhase && mqttIndicatorState == state) {
+    return;
+  }
+
+  mqttIndicatorState = state;
+
+  if (resetPhase) {
+    mqttIndicatorLastTick = millis();
+    mqttIndicatorBlinkOn = (state == MqttIndicatorState::Connecting) ? false : true;
+    mqttBackoffPhase = 0;
+  }
+
+  if (mqttIndicatorState == MqttIndicatorState::Off) {
+    writeMqttLed(false);
+    return;
+  }
+
+  if (mqttIndicatorState == MqttIndicatorState::Connected) {
+    writeMqttLed(true);
+    return;
+  }
+
+  if (mqttIndicatorState == MqttIndicatorState::Connecting) {
+    writeMqttLed(mqttIndicatorBlinkOn);
+    return;
+  }
+
+  writeMqttLed(true);
+}
+
+void updateWifiIndicator() {
+  if (wifiIndicatorState != WifiIndicatorState::Connecting) {
+    return;
+  }
+
+  const unsigned long intervalMs = 500;
+  unsigned long now = millis();
+
+  if (now - wifiIndicatorLastTick >= intervalMs) {
+    wifiIndicatorLastTick = now;
+    wifiIndicatorBlinkOn = !wifiIndicatorBlinkOn;
+    writeWifiLed(wifiIndicatorBlinkOn);
+  }
+}
+
+void updateMqttIndicator() {
+  unsigned long now = millis();
+
+  if (mqttIndicatorState == MqttIndicatorState::Connecting) {
+    const unsigned long intervalMs = 200;
+    if (now - mqttIndicatorLastTick >= intervalMs) {
+      mqttIndicatorLastTick = now;
+      mqttIndicatorBlinkOn = !mqttIndicatorBlinkOn;
+      writeMqttLed(mqttIndicatorBlinkOn);
+    }
+    return;
+  }
+
+  if (mqttIndicatorState == MqttIndicatorState::Backoff) {
+    const unsigned long phaseDurations[4] = { 120, 120, 120, 640 };
+    const bool phaseOutputs[4] = { true, false, true, false };
+
+    if (now - mqttIndicatorLastTick >= phaseDurations[mqttBackoffPhase]) {
+      mqttIndicatorLastTick = now;
+      mqttBackoffPhase = (mqttBackoffPhase + 1) % 4;
+      writeMqttLed(phaseOutputs[mqttBackoffPhase]);
+    }
+  }
+}
+
+void updateConnectivityIndicators() {
+  updateWifiIndicator();
+  updateMqttIndicator();
+}
+
+void delayWithIndicators(unsigned long durationMs) {
+  unsigned long start = millis();
+
+  while (millis() - start < durationMs) {
+    updateConnectivityIndicators();
+    delay(20);
+  }
+}
+
+bool ensureControlTopicSubscription(bool forceAttempt = false) {
+  if (!mqttClient.connected()) {
+    controlTopicSubscribed = false;
+    return false;
+  }
+
+  unsigned long now = millis();
+  if (!forceAttempt) {
+    unsigned long minIntervalMs = controlTopicSubscribed
+      ? MQTT_SUBSCRIPTION_REFRESH_MS
+      : MQTT_SUBSCRIPTION_RETRY_MS;
+
+    if (now - lastControlSubscriptionAttemptMs < minIntervalMs) {
+      return controlTopicSubscribed;
+    }
+  }
+
+  lastControlSubscriptionAttemptMs = now;
+
+  bool subscribed = mqttClient.subscribe(TOPIC_CONTROL, 1);
+  if (subscribed) {
+    if (!controlTopicSubscribed) {
+      Serial.printf("[MQTT] Subscribed -> %s\n", TOPIC_CONTROL);
+    }
+    controlTopicSubscribed = true;
+    return true;
+  }
+
+  Serial.printf("[MQTT] Subscribe failed -> %s (state=%d)\n", TOPIC_CONTROL, mqttClient.state());
+  controlTopicSubscribed = false;
+  return false;
+}
 
 uint8_t hexPairToByte(char high, char low) {
   char value[3] = { high, low, '\0' };
@@ -343,15 +529,28 @@ void onMqttMessage(char* topic, byte* payload, unsigned int length) {
 }
 
 void connectWiFi() {
+  setWifiIndicatorState(WifiIndicatorState::Connecting);
+  setMqttIndicatorState(MqttIndicatorState::Off);
+  controlTopicSubscribed = false;
+
   Serial.printf("[WiFi] Connecting to %s", WIFI_SSID);
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
+  unsigned long lastDotTick = 0;
   while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
+    unsigned long now = millis();
+    if (now - lastDotTick >= 500) {
+      lastDotTick = now;
+      Serial.print(".");
+    }
+
+    updateConnectivityIndicators();
+    delay(20);
   }
 
+  setWifiIndicatorState(WifiIndicatorState::Connected);
+  setMqttIndicatorState(MqttIndicatorState::Off);
   Serial.printf("\n[WiFi] Connected - IP: %s\n", WiFi.localIP().toString().c_str());
 }
 
@@ -359,8 +558,17 @@ void connectMQTT() {
   mqttClient.setServer(MQTT_HOST, MQTT_PORT);
   mqttClient.setBufferSize(512);
   mqttClient.setCallback(onMqttMessage);
+  controlTopicSubscribed = false;
 
   while (!mqttClient.connected()) {
+    if (WiFi.status() != WL_CONNECTED) {
+      setMqttIndicatorState(MqttIndicatorState::Off);
+      controlTopicSubscribed = false;
+      return;
+    }
+
+    setMqttIndicatorState(MqttIndicatorState::Connecting);
+    delayWithIndicators(MQTT_CONNECTING_INDICATION_MS);
     Serial.printf("[MQTT] Connecting to %s:%d as %s\n", MQTT_HOST, MQTT_PORT, MQTT_CLIENT);
 
     // Configure Last Will and Testament (LWT):
@@ -370,18 +578,29 @@ void connectMQTT() {
       : mqttClient.connect(MQTT_CLIENT, MQTT_USER, MQTT_PASS, TOPIC_PRESENCE, 1, true, "offline");
 
     if (connected) {
+      setMqttIndicatorState(MqttIndicatorState::Connected);
       Serial.println("[MQTT] Connected");
+      controlTopicSubscribed = false;
+      lastControlSubscriptionAttemptMs = 0;
 
       // Announce online presence (retained so new subscribers see it immediately)
       mqttClient.publish(TOPIC_PRESENCE, "online", true);
       Serial.printf("[MQTT] Published presence -> %s payload=online\n", TOPIC_PRESENCE);
 
-      mqttClient.subscribe(TOPIC_CONTROL, 1);
-      Serial.printf("[MQTT] Subscribed -> %s\n", TOPIC_CONTROL);
+      if (!ensureControlTopicSubscription(true)) {
+        setMqttIndicatorState(MqttIndicatorState::Backoff);
+        Serial.println("[MQTT] Control topic subscription failed, retrying MQTT connect in 3s");
+        mqttClient.disconnect();
+        delayWithIndicators(3000);
+        continue;
+      }
+
       publishState();
     } else {
+      setMqttIndicatorState(MqttIndicatorState::Backoff);
+      controlTopicSubscribed = false;
       Serial.printf("[MQTT] Failed (rc=%d) retrying in 3s\n", mqttClient.state());
-      delay(3000);
+      delayWithIndicators(3000);
     }
   }
 }
@@ -482,6 +701,11 @@ void setup() {
   pinMode(PIN_BUTTON_EFFECT, INPUT_PULLUP);
   pinMode(PIN_BUTTON_BRIGHTNESS, INPUT_PULLUP);
 
+  pinMode(PIN_WIFI_STATUS_LED, OUTPUT);
+  pinMode(PIN_MQTT_STATUS_LED, OUTPUT);
+  setWifiIndicatorState(WifiIndicatorState::Off);
+  setMqttIndicatorState(MqttIndicatorState::Off);
+
   resetEffectTiming();
   updateEffect();
 
@@ -490,12 +714,20 @@ void setup() {
 }
 
 void loop() {
+  if (WiFi.status() != WL_CONNECTED) {
+    setMqttIndicatorState(MqttIndicatorState::Off);
+    connectWiFi();
+  }
+
   if (!mqttClient.connected()) {
+    controlTopicSubscribed = false;
     connectMQTT();
   }
 
   mqttClient.loop();
+  ensureControlTopicSubscription();
   handleButtons();
   handleDeferredPublish();
   updateEffect();
+  updateConnectivityIndicators();
 }

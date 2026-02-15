@@ -29,54 +29,30 @@ git checkout -b feature/us-1-device-types
 - Example: `feature/us-7-parameter-definitions`
 
 #### 3️⃣ Commit Your Work
-All commits **must** follow this format (enforced by CI):
-
-```
-US-<issue-number>: <short description> #<issue-number>
-```
+Commit your changes with clear and descriptive commit messages.
 
 **Examples:**
 ```bash
-git commit -m "US-1: Add ProtocolType enum #1"
-git commit -m "US-1: Create ProtocolConfigCast for MQTT/HTTP #1"
-git commit -m "US-1: Add DeviceType model and migration #1"
+git commit -m "feat: add protocol types for MQTT"
+git commit -m "fix: logic error in parameter validation"
 ```
-
-**Why include `#<issue-number>`?**
-- Creates automatic GitHub issue linking
-- Allows viewing all commits for an issue directly from GitHub
-- Enables better traceability in GitHub's UI
-
-**Why?** This links commits to issues, making the history traceable and enabling automated changelog generation.
 
 #### 4️⃣ Push and Open PR
 ```bash
-git push origin feature/us-1-device-types
+git push origin feature/my-feature-name
 ```
 
-Then open a PR on GitHub:
-- **Base branch**: `main`
-- **Title**: Should include `US-<issue-number>` (e.g., "US-1: Device Type Management")
-- **Description**: Use the PR template (auto-populated). Fill in the issue reference (`Closes #1`)
-
 #### 5️⃣ Automated Checks
-GitHub Actions will automatically:
-- ✅ Validate commit message format (`US-<number>:` prefix)
-- ✅ Validate branch name (`feature/us-<number>-<slug>`)
-- ✅ Check PR references an issue
-- ✅ Run tests, Pint, PHPStan (existing CI)
+GitHub Actions will automatically run tests, Pint, and PHPStan to ensure code quality.
 
 #### 6️⃣ Move Issue to "In Review"
 Manually move the issue from "In Progress" → "In Review" on the GitHub Project board.
 
-> **Future automation**: We can set up GitHub Project automation to do this automatically when PR is opened.
-
 #### 7️⃣ Code Review
-- If **changes requested**: Address feedback, push new commits (same format), move issue back to "In Progress"
+- If **changes requested**: Address feedback, push new commits
 - If **approved**: Merge the PR (use **Squash and Merge** for clean history)
 
 #### 8️⃣ Post-Merge
-- PR merged → Issue automatically closes (if you used `Closes #<number>`)
 - Manually move issue to "Done" on the project board (or automate via GitHub Projects)
 - Delete the feature branch
 
@@ -96,10 +72,6 @@ vendor/bin/phpstan analyse
 
 # 3. Run tests
 php artisan test --compact
-
-# 4. Test migrations (up and down)
-php artisan migrate:fresh --seed
-php artisan migrate:rollback
 ```
 
 ### Testing Requirements
@@ -126,46 +98,7 @@ php artisan migrate:rollback
 
 ## 🤖 GitHub Actions Enforcement
 
-### Commit Message Check
-**Enforced format**: `US-<issue-number>: <description> #<issue-number>`
-
-**Pass:**
-```
-US-1: Add ProtocolType enum #1
-US-7: Create parameter extraction logic #7
-US-1: Fix validation bug #1
-```
-
-**Fail:**
-```
-Add device types                    (missing US- prefix)
-US-1 Add enum                       (missing colon)
-Fixed bug                           (missing issue reference)
-```
-
-**Note:** The `#<issue-number>` at the end is recommended but not strictly enforced by hooks. It creates automatic GitHub issue linking.
-
-### Branch Name Check
-**Enforced format**: `feature/us-<number>-<slug>` or `hotfix/us-<number>-<slug>`
-
-**Pass:**
-```
-feature/us-1-device-types
-feature/us-7-parameter-definitions
-hotfix/us-3-fix-validation
-```
-
-**Fail:**
-```
-feature/device-types               (missing us-<number>)
-US-1-device-types                  (missing feature/ prefix)
-feature/us-1_device_types          (underscores not allowed)
-```
-
-### PR Issue Link Check
-PR title or description must reference an issue using:
-- `US-<number>` in the title
-- `#<number>` or `Closes #<number>` in the description
+GitHub Actions will automatically run tests and static analysis.
 
 ---
 
@@ -184,13 +117,13 @@ All enforced via CI pipeline.
 
 ```bash
 # Start new feature
-git checkout -b feature/us-1-device-types
+git checkout -b feature/my-feature
 
-# Commit (follow format!)
-git commit -m "US-1: Add DeviceType model"
+# Commit
+git commit -m "feat: my changes"
 
 # Push and open PR
-git push origin feature/us-1-device-types
+git push origin feature/my-feature
 
 # Run quality checks locally
 vendor/bin/pint --dirty --format agent
@@ -203,10 +136,9 @@ php artisan test --compact
 ## 💡 Tips
 
 1. **Keep commits atomic** - One logical change per commit
-2. **Write descriptive commit messages** - `US-1: Add ProtocolConfigCast` is better than `US-1: Update code`
+2. **Write descriptive commit messages**
 3. **Test locally before pushing** - Run Pint, PHPStan, and tests
-4. **Keep PRs focused** - One user story per PR
-5. **Update the issue** - Move it through the project board as you progress
+4. **Keep PRs focused**
 
 ---
 

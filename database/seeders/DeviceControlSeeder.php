@@ -40,6 +40,17 @@ class DeviceControlSeeder extends Seeder
                 'model' => 'RGB-3000',
             ],
         );
+
+        $this->seedDeviceForType(
+            organizationId: $organization->id,
+            deviceTypeKey: 'energy_meter',
+            externalId: 'main-energy-meter-01',
+            name: 'Main Building Energy Meter',
+            metadata: [
+                'location' => 'Main Electrical Room',
+                'model' => 'EM-3PH-400',
+            ],
+        );
     }
 
     /**

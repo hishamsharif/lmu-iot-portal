@@ -51,6 +51,10 @@ class DeviceFeedbackReconciler
         string $host = '127.0.0.1',
         int $port = 4223,
     ): ?array {
+        if ($this->isInternalBridgeTopic($mqttTopic)) {
+            return null;
+        }
+
         $this->log()->debug('Reconciling inbound message', [
             'mqtt_topic' => $mqttTopic,
             'payload' => $payload,
@@ -460,6 +464,15 @@ class DeviceFeedbackReconciler
 
         /** @var array<string, mixed> $payload */
         return $payload;
+    }
+
+    private function isInternalBridgeTopic(string $mqttTopic): bool
+    {
+        return str_starts_with($mqttTopic, '$MQTT/')
+            || str_starts_with($mqttTopic, '$JS/')
+            || str_starts_with($mqttTopic, '_REQS/')
+            || str_starts_with($mqttTopic, '$KV/')
+            || str_starts_with($mqttTopic, '$SYS/');
     }
 
     private function log(): \Psr\Log\LoggerInterface

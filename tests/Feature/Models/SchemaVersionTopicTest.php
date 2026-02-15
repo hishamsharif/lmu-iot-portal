@@ -319,8 +319,8 @@ test('buildCommandPayloadTemplate omits optional button parameters by default', 
 
     ParameterDefinition::factory()->create([
         'schema_version_topic_id' => $topic->id,
-        'key' => 'apply_changes',
-        'json_path' => 'apply_changes',
+        'key' => 'send_now',
+        'json_path' => 'send_now',
         'type' => ParameterDataType::Boolean,
         'default_value' => false,
         'required' => false,
@@ -336,7 +336,7 @@ test('buildCommandPayloadTemplate omits optional button parameters by default', 
 
     expect($template)->toBe([
         'brightness' => 42,
-    ])->and($template)->not->toHaveKey('apply_changes');
+    ])->and($template)->not->toHaveKey('send_now');
 });
 
 test('buildPublishPayloadTemplate creates nested payload using JSONPath-like json_path', function (): void {

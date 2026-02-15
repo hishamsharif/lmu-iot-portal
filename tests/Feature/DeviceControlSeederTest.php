@@ -60,3 +60,17 @@ it('seeds a dimmable light device with state and control topics', function (): v
 
     expect($device)->not->toBeNull();
 });
+
+it('seeds the energy meter device required by automation workflows', function (): void {
+    $this->seed(DeviceSchemaSeeder::class);
+    $this->seed(DeviceControlSeeder::class);
+
+    $energyMeterType = DeviceType::where('key', 'energy_meter')->first();
+    expect($energyMeterType)->not->toBeNull();
+
+    $energyMeter = Device::where('device_type_id', $energyMeterType->id)
+        ->where('external_id', 'main-energy-meter-01')
+        ->first();
+
+    expect($energyMeter)->not->toBeNull();
+});

@@ -2,12 +2,13 @@
 
 ## Overview
 
-The Device Control module provides seven artisan commands under the `iot:` namespace. Three are **long-running listeners**, two are **scheduled maintenance tasks**, and two are **development/testing utilities**.
+The Device Control module provides eight artisan commands under the `iot:` namespace. Three are **long-running listeners**, two are **scheduled maintenance tasks**, and three are **development/testing utilities**.
 
 | Command | Type | Runs As |
 |---------|------|---------|
 | `iot:listen-for-device-states` | Listener | Long-running process (supervisor) |
 | `iot:listen-for-device-presence` | Listener | Long-running process (supervisor) |
+| `iot:ingest-telemetry` | Listener | Long-running process (supervisor) |
 | `iot:expire-stale-commands` | Maintenance | Scheduled every minute |
 | `iot:check-device-health` | Maintenance | Scheduled every minute |
 | `iot:mock-device` | Development | Manual, interactive |
@@ -21,6 +22,18 @@ All commands live in `app/Console/Commands/IoT/`.
 ## Long-Running Listeners
 
 These commands connect to NATS and process messages indefinitely. They should be run under a process supervisor (e.g. Laravel Horizon, Supervisor, or systemd) that restarts them on failure.
+
+For local development, you can run all required listeners and support services with:
+
+```bash
+./scripts/platform-up.sh
+```
+
+And stop everything with:
+
+```bash
+./scripts/platform-down.sh
+```
 
 ### iot:listen-for-device-states
 
@@ -74,6 +87,38 @@ iot:listen-for-device-presence [--host=] [--port=]
 **Dependencies**: `DevicePresenceService` (injected into `handle()`)
 
 See [06-presence-tracking.md](06-presence-tracking.md) for the full presence system.
+
+---
+
+### iot:ingest-telemetry
+
+**Purpose**: Consumes inbound telemetry from NATS and dispatches normalized processing jobs to the queue.
+
+**Signature**:
+```
+iot:ingest-telemetry [--host=] [--port=] [--subject=] [--queue=]
+```
+
+**How it works**:
+1. Connects to NATS
+2. Subscribes to telemetry subject (default `>`)
+3. Skips internal/unsupported subjects and non-resolvable topics
+4. Emits `TelemetryIncoming` for realtime visibility
+5. Dispatches `ProcessInboundTelemetryJob` onto configured queue connection/queue
+6. Loops indefinitely via `$client->process(1)`
+
+**Options**:
+| Option | Default | Source |
+|--------|---------|--------|
+| `--host` | `127.0.0.1` | `config('ingestion.nats.host')` |
+| `--port` | `4223` | `config('ingestion.nats.port')` |
+| `--subject` | `>` | `config('ingestion.nats.subject')` |
+| `--queue` | `ingestion` | `config('ingestion.queue')` |
+
+**Dependencies**:
+- `DeviceTelemetryTopicResolver`
+- `ProcessInboundTelemetryJob`
+- Queue connection from `config('ingestion.queue_connection')`
 
 ---
 
