@@ -12,11 +12,15 @@ final class BasisNatsDeviceStateStore implements NatsDeviceStateStore
 {
     private const string BUCKET_NAME = 'device-states';
 
+    /**
+     * @var array<string, \Basis\Nats\KeyValue\Bucket>
+     */
+    private static array $buckets = [];
+
     public function store(string $deviceUuid, string $topic, array $payload, string $host = '127.0.0.1', int $port = 4223): void
     {
         try {
-            $client = $this->createClient($host, $port);
-            $bucket = $client->getApi()->getBucket(self::BUCKET_NAME);
+            $bucket = $this->getBucket($host, $port);
 
             $document = $this->normalizeDocument($bucket->get($deviceUuid));
             $document['topics'][$topic] = [
@@ -26,7 +30,14 @@ final class BasisNatsDeviceStateStore implements NatsDeviceStateStore
             ];
 
             $data = json_encode($document);
-            $bucket->put($deviceUuid, is_string($data) ? $data : '{}');
+            $payloadString = is_string($data) ? $data : '{}';
+
+            // We bypass $bucket->put() because it has a strict :int return type hint
+            // which crashes with TypeError if NATS returns null (common when JS is unstable).
+            $bucket->getStream()->publish(
+                $bucket->getSubject($deviceUuid),
+                $payloadString,
+            );
         } catch (Throwable $exception) {
             if ($this->isJetStreamUnavailable($exception)) {
                 logger()->warning('NATS KV hot-state write skipped: JetStream/KV unavailable.', [
@@ -53,8 +64,7 @@ final class BasisNatsDeviceStateStore implements NatsDeviceStateStore
     public function getAllStates(string $deviceUuid, string $host = '127.0.0.1', int $port = 4223): array
     {
         try {
-            $client = $this->createClient($host, $port);
-            $bucket = $client->getApi()->getBucket(self::BUCKET_NAME);
+            $bucket = $this->getBucket($host, $port);
             $value = $bucket->get($deviceUuid);
         } catch (Throwable $exception) {
             if ($this->isJetStreamUnavailable($exception)) {
@@ -80,8 +90,7 @@ final class BasisNatsDeviceStateStore implements NatsDeviceStateStore
     public function getStateByTopic(string $deviceUuid, string $topic, string $host = '127.0.0.1', int $port = 4223): ?array
     {
         try {
-            $client = $this->createClient($host, $port);
-            $bucket = $client->getApi()->getBucket(self::BUCKET_NAME);
+            $bucket = $this->getBucket($host, $port);
             $value = $bucket->get($deviceUuid);
         } catch (Throwable $exception) {
             if ($this->isJetStreamUnavailable($exception)) {
@@ -96,8 +105,14 @@ final class BasisNatsDeviceStateStore implements NatsDeviceStateStore
         return $document['topics'][$topic] ?? null;
     }
 
-    private function createClient(string $host, int $port): Client
+    private function getBucket(string $host, int $port): \Basis\Nats\KeyValue\Bucket
     {
+        $key = "{$host}:{$port}";
+
+        if (isset(self::$buckets[$key])) {
+            return self::$buckets[$key];
+        }
+
         $client = new Client(new Configuration([
             'host' => $host,
             'port' => $port,
@@ -105,7 +120,7 @@ final class BasisNatsDeviceStateStore implements NatsDeviceStateStore
 
         $client->skipInvalidMessages(true);
 
-        return $client;
+        return self::$buckets[$key] = $client->getApi()->getBucket(self::BUCKET_NAME);
     }
 
     private function isJetStreamUnavailable(Throwable $exception): bool

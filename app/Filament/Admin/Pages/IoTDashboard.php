@@ -65,16 +65,19 @@ class IoTDashboard extends Page
     {
         $requestedDashboardId = request()->integer('dashboard');
 
-        if (
-            $requestedDashboardId > 0
-            && IoTDashboardModel::query()->whereKey($requestedDashboardId)->exists()
-        ) {
-            $this->dashboardId = $requestedDashboardId;
+        if ($requestedDashboardId > 0) {
+            $dashboardExists = $this->getDashboardQuery()
+                ->whereKey($requestedDashboardId)
+                ->exists();
 
-            return;
+            if ($dashboardExists) {
+                $this->dashboardId = $requestedDashboardId;
+
+                return;
+            }
         }
 
-        $firstDashboardId = IoTDashboardModel::query()
+        $firstDashboardId = $this->getDashboardQuery()
             ->orderBy('name')
             ->value('id');
 
@@ -305,7 +308,7 @@ class IoTDashboard extends Page
             return null;
         }
 
-        return IoTDashboardModel::query()
+        $dashboard = $this->getDashboardQuery()
             ->with([
                 'organization:id,name',
                 'widgets' => fn ($query) => $query
@@ -317,6 +320,25 @@ class IoTDashboard extends Page
                     ->orderBy('id'),
             ])
             ->find((int) $this->dashboardId);
+
+        return $dashboard instanceof IoTDashboardModel ? $dashboard : null;
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Builder<\App\Domain\IoTDashboard\Models\IoTDashboard>
+     */
+    private function getDashboardQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = IoTDashboardModel::query();
+
+        /** @var \App\Domain\Shared\Models\User $user */
+        $user = auth()->user();
+
+        if ($user->isSuperAdmin()) {
+            return $query;
+        }
+
+        return $query->whereIn('organization_id', $user->organizations()->pluck('id'));
     }
 
     /**
