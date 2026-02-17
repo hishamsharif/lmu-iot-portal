@@ -2,69 +2,56 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\IoTDashboard\Services;
+namespace App\Domain\IoTDashboard\Widgets\BarChart;
 
-use App\Domain\IoTDashboard\Enums\BarInterval;
+use App\Domain\IoTDashboard\Contracts\WidgetConfig;
+use App\Domain\IoTDashboard\Contracts\WidgetSnapshotResolver;
 use App\Domain\IoTDashboard\Models\IoTDashboardWidget;
 use App\Domain\Telemetry\Models\DeviceTelemetryLog;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use InvalidArgumentException;
 
-class BarChartWidgetDataResolver
+class BarChartSnapshotResolver implements WidgetSnapshotResolver
 {
     /**
-     * @return array{
-     *     widget_id: int,
-     *     topic_id: int,
-     *     generated_at: string,
-     *     interval: string,
-     *     series: array<int, array{
-     *         key: string,
-     *         label: string,
-     *         color: string,
-     *         points: array<int, array{timestamp: string, value: int|float}>
-     *     }>
-     * }
+     * @return array<string, mixed>
      */
-    public function resolve(
-        IoTDashboardWidget $widget,
-        int $lookbackMinutes,
-        int $maxPoints,
-        BarInterval $interval,
-    ): array {
+    public function resolve(IoTDashboardWidget $widget, WidgetConfig $config): array
+    {
+        if (! $config instanceof BarChartConfig) {
+            throw new InvalidArgumentException('Bar chart widgets require BarChartConfig.');
+        }
+
         $deviceId = is_numeric($widget->device_id) ? (int) $widget->device_id : null;
-        $seriesConfiguration = $widget->resolvedSeriesConfig();
         $logs = $deviceId === null
             ? collect()
             : $this->fetchTelemetryLogs(
                 schemaVersionTopicId: (int) $widget->schema_version_topic_id,
                 deviceId: $deviceId,
-                lookbackMinutes: $lookbackMinutes,
+                lookbackMinutes: $config->lookbackMinutes(),
             );
 
         $series = [];
 
-        foreach ($seriesConfiguration as $config) {
+        foreach ($config->series() as $seriesConfiguration) {
             $series[] = [
-                'key' => $config['key'],
-                'label' => $config['label'],
-                'color' => $config['color'],
+                'key' => $seriesConfiguration['key'],
+                'label' => $seriesConfiguration['label'],
+                'color' => $seriesConfiguration['color'],
                 'points' => $this->buildConsumptionBuckets(
                     logs: $logs,
-                    parameterKey: $config['key'],
-                    interval: $interval,
-                    maxPoints: $maxPoints,
+                    parameterKey: $seriesConfiguration['key'],
+                    interval: $config->barInterval(),
+                    maxPoints: $config->maxPoints(),
                 ),
             ];
         }
 
         return [
             'widget_id' => (int) $widget->id,
-            'topic_id' => (int) $widget->schema_version_topic_id,
-            'device_id' => $deviceId,
             'generated_at' => now()->toIso8601String(),
-            'interval' => $interval->value,
+            'interval' => $config->barInterval()->value,
             'series' => $series,
         ];
     }
@@ -74,15 +61,12 @@ class BarChartWidgetDataResolver
      */
     private function fetchTelemetryLogs(
         int $schemaVersionTopicId,
-        ?int $deviceId,
+        int $deviceId,
         int $lookbackMinutes,
     ): Collection {
         return DeviceTelemetryLog::query()
             ->where('schema_version_topic_id', $schemaVersionTopicId)
-            ->when(
-                is_numeric($deviceId) && $deviceId > 0,
-                fn (Builder $query): Builder => $query->where('device_id', $deviceId),
-            )
+            ->where('device_id', $deviceId)
             ->where('recorded_at', '>=', now()->subMinutes($lookbackMinutes))
             ->orderBy('recorded_at')
             ->get(['id', 'recorded_at', 'transformed_values']);

@@ -6,7 +6,9 @@ namespace Database\Factories\Domain\IoTDashboard\Models;
 
 use App\Domain\DeviceManagement\Models\Device;
 use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
+use App\Domain\IoTDashboard\Enums\WidgetType;
 use App\Domain\IoTDashboard\Models\IoTDashboardWidget;
+use App\Domain\IoTDashboard\Widgets\BarChart\BarInterval;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -28,28 +30,53 @@ class IoTDashboardWidgetFactory extends Factory
             'iot_dashboard_id' => IoTDashboardFactory::new(),
             'device_id' => Device::factory(),
             'schema_version_topic_id' => SchemaVersionTopic::factory()->publish(),
-            'type' => 'line_chart',
+            'type' => WidgetType::LineChart->value,
             'title' => Str::title($this->faker->words(3, true)),
-            'series_config' => [
-                ['key' => 'value', 'label' => 'Value', 'color' => '#38bdf8'],
-            ],
-            'options' => [
-                'layout' => [
-                    'x' => 0,
-                    'y' => 0,
-                    'w' => 6,
-                    'h' => 4,
+            'config' => [
+                'series' => [
+                    ['key' => 'value', 'label' => 'Value', 'color' => '#38bdf8'],
                 ],
-                'layout_columns' => 24,
-                'grid_columns' => 6,
-                'card_height_px' => 360,
+                'transport' => [
+                    'use_websocket' => true,
+                    'use_polling' => true,
+                    'polling_interval_seconds' => 10,
+                ],
+                'window' => [
+                    'lookback_minutes' => 120,
+                    'max_points' => 240,
+                ],
             ],
-            'use_websocket' => true,
-            'use_polling' => true,
-            'polling_interval_seconds' => 10,
-            'lookback_minutes' => 120,
-            'max_points' => 240,
+            'layout' => [
+                'x' => 0,
+                'y' => 0,
+                'w' => 6,
+                'h' => 4,
+                'columns' => 24,
+                'card_height_px' => 384,
+            ],
             'sequence' => 0,
         ];
+    }
+
+    public function barChart(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'type' => WidgetType::BarChart->value,
+            'config' => [
+                'series' => [
+                    ['key' => 'total_energy_kwh', 'label' => 'Total Energy', 'color' => '#0ea5e9'],
+                ],
+                'transport' => [
+                    'use_websocket' => false,
+                    'use_polling' => true,
+                    'polling_interval_seconds' => 60,
+                ],
+                'window' => [
+                    'lookback_minutes' => 1440,
+                    'max_points' => 24,
+                ],
+                'bar_interval' => BarInterval::Hourly->value,
+            ],
+        ]);
     }
 }

@@ -6,6 +6,13 @@ namespace App\Domain\IoTDashboard\Models;
 
 use App\Domain\DeviceManagement\Models\Device;
 use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
+use App\Domain\IoTDashboard\Casts\WidgetConfigCast;
+use App\Domain\IoTDashboard\Casts\WidgetLayoutCast;
+use App\Domain\IoTDashboard\Contracts\WidgetConfig;
+use App\Domain\IoTDashboard\Enums\WidgetType;
+use App\Domain\IoTDashboard\Widgets\BarChart\BarChartConfig;
+use App\Domain\IoTDashboard\Widgets\GaugeChart\GaugeChartConfig;
+use App\Domain\IoTDashboard\Widgets\LineChart\LineChartConfig;
 use Database\Factories\Domain\IoTDashboard\Models\IoTDashboardWidgetFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -31,13 +38,8 @@ class IoTDashboardWidget extends Model
     protected function casts(): array
     {
         return [
-            'series_config' => 'array',
-            'options' => 'array',
-            'use_websocket' => 'bool',
-            'use_polling' => 'bool',
-            'polling_interval_seconds' => 'integer',
-            'lookback_minutes' => 'integer',
-            'max_points' => 'integer',
+            'config' => WidgetConfigCast::class,
+            'layout' => WidgetLayoutCast::class,
             'sequence' => 'integer',
         ];
     }
@@ -66,41 +68,84 @@ class IoTDashboardWidget extends Model
         return $this->belongsTo(Device::class, 'device_id');
     }
 
+    public function widgetType(): WidgetType
+    {
+        return WidgetType::tryFrom((string) $this->type) ?? WidgetType::LineChart;
+    }
+
+    public function configObject(): WidgetConfig
+    {
+        $config = $this->getAttribute('config');
+
+        if ($config instanceof WidgetConfig) {
+            return $config;
+        }
+
+        return match ($this->widgetType()) {
+            WidgetType::LineChart => LineChartConfig::fromArray([]),
+            WidgetType::BarChart => BarChartConfig::fromArray([]),
+            WidgetType::GaugeChart => GaugeChartConfig::fromArray([]),
+        };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function configArray(): array
+    {
+        $config = $this->getAttribute('config');
+
+        if ($config instanceof WidgetConfig) {
+            return $config->toArray();
+        }
+
+        return is_array($config) ? $config : [];
+    }
+
+    /**
+     * @return array{x: int, y: int, w: int, h: int, columns: int, card_height_px: int}
+     */
+    public function layoutArray(): array
+    {
+        $layout = $this->getAttribute('layout');
+
+        if (! is_array($layout)) {
+            return [
+                'x' => 0,
+                'y' => 0,
+                'w' => 6,
+                'h' => 4,
+                'columns' => 24,
+                'card_height_px' => 384,
+            ];
+        }
+
+        return [
+            'x' => $this->toInt($layout['x'] ?? null, 0),
+            'y' => $this->toInt($layout['y'] ?? null, 0),
+            'w' => $this->toInt($layout['w'] ?? null, 6),
+            'h' => $this->toInt($layout['h'] ?? null, 4),
+            'columns' => $this->toInt($layout['columns'] ?? null, 24),
+            'card_height_px' => $this->toInt($layout['card_height_px'] ?? null, 384),
+        ];
+    }
+
     /**
      * @return array<int, array{key: string, label: string, color: string}>
      */
     public function resolvedSeriesConfig(): array
     {
-        $series = $this->getAttribute('series_config');
+        $config = $this->getAttribute('config');
 
-        if (! is_array($series)) {
-            return [];
+        if ($config instanceof WidgetConfig) {
+            return $config->series();
         }
 
-        $resolved = [];
+        return [];
+    }
 
-        foreach ($series as $entry) {
-            if (! is_array($entry)) {
-                continue;
-            }
-
-            $key = $entry['key'] ?? null;
-
-            if (! is_string($key) || trim($key) === '') {
-                continue;
-            }
-
-            $resolved[] = [
-                'key' => $key,
-                'label' => is_string($entry['label'] ?? null) && trim((string) $entry['label']) !== ''
-                    ? (string) $entry['label']
-                    : $key,
-                'color' => is_string($entry['color'] ?? null) && trim((string) $entry['color']) !== ''
-                    ? (string) $entry['color']
-                    : '#38bdf8',
-            ];
-        }
-
-        return $resolved;
+    private function toInt(mixed $value, int $default): int
+    {
+        return is_numeric($value) ? (int) round((float) $value) : $default;
     }
 }

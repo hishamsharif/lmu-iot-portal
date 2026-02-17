@@ -19,7 +19,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-function createDashboardWidgetContext(): array
+function createDashboardSnapshotBaseContext(): array
 {
     $organization = Organization::factory()->create();
     $deviceType = DeviceType::factory()->mqtt()->create([
@@ -55,6 +55,36 @@ function createDashboardWidgetContext(): array
         ]);
     }
 
+    ParameterDefinition::factory()->create([
+        'schema_version_topic_id' => $topic->id,
+        'key' => 'total_energy_kwh',
+        'label' => 'Total Energy',
+        'json_path' => 'energy.total_energy_kwh',
+        'type' => ParameterDataType::Decimal,
+        'unit' => 'kWh',
+        'sequence' => 10,
+        'required' => true,
+        'is_active' => true,
+        'validation_rules' => ['category' => 'counter', 'min' => 0],
+        'mutation_expression' => null,
+        'validation_error_code' => null,
+    ]);
+
+    ParameterDefinition::factory()->create([
+        'schema_version_topic_id' => $topic->id,
+        'key' => 'A1',
+        'label' => 'Current A1',
+        'json_path' => 'currents.A1',
+        'type' => ParameterDataType::Decimal,
+        'unit' => 'A',
+        'sequence' => 11,
+        'required' => true,
+        'is_active' => true,
+        'validation_rules' => ['min' => 0, 'max' => 150],
+        'mutation_expression' => null,
+        'validation_error_code' => null,
+    ]);
+
     $dashboard = IoTDashboard::factory()->create([
         'organization_id' => $organization->id,
         'name' => 'Energy Meter Polling',
@@ -65,141 +95,94 @@ function createDashboardWidgetContext(): array
         'device_type_id' => $deviceType->id,
         'device_schema_version_id' => $schemaVersion->id,
     ]);
+
+    return [$organization, $dashboard, $topic, $device];
+}
+
+function createLineWidgetSnapshotContext(): array
+{
+    [$organization, $dashboard, $topic, $device] = createDashboardSnapshotBaseContext();
+
     $widget = IoTDashboardWidget::factory()->create([
         'iot_dashboard_id' => $dashboard->id,
         'device_id' => $device->id,
         'schema_version_topic_id' => $topic->id,
         'type' => 'line_chart',
         'title' => 'Voltages',
-        'series_config' => [
-            ['key' => 'V1', 'label' => 'Voltage V1', 'color' => '#22d3ee'],
-            ['key' => 'V2', 'label' => 'Voltage V2', 'color' => '#a855f7'],
-            ['key' => 'V3', 'label' => 'Voltage V3', 'color' => '#f97316'],
+        'config' => [
+            'series' => [
+                ['key' => 'V1', 'label' => 'Voltage V1', 'color' => '#22d3ee'],
+                ['key' => 'V2', 'label' => 'Voltage V2', 'color' => '#a855f7'],
+                ['key' => 'V3', 'label' => 'Voltage V3', 'color' => '#f97316'],
+            ],
+            'transport' => [
+                'use_websocket' => true,
+                'use_polling' => true,
+                'polling_interval_seconds' => 10,
+            ],
+            'window' => [
+                'lookback_minutes' => 240,
+                'max_points' => 240,
+            ],
         ],
-        'lookback_minutes' => 240,
-        'max_points' => 240,
     ]);
 
-    return [$organization, $topic, $widget, $device];
+    return [$organization, $dashboard, $topic, $widget, $device];
 }
 
-function createEnergyConsumptionBarWidgetContext(): array
+function createBarWidgetSnapshotContext(string $interval = 'hourly'): array
 {
-    $organization = Organization::factory()->create();
-    $deviceType = DeviceType::factory()->mqtt()->create([
-        'key' => 'energy_meter_bar_widget_test',
-    ]);
-    $schema = DeviceSchema::factory()->forDeviceType($deviceType)->create([
-        'name' => 'Energy Meter Bar Schema',
-    ]);
-    $schemaVersion = DeviceSchemaVersion::factory()->active()->create([
-        'device_schema_id' => $schema->id,
-        'version' => 1,
-    ]);
-    $topic = SchemaVersionTopic::factory()->publish()->create([
-        'device_schema_version_id' => $schemaVersion->id,
-        'key' => 'telemetry',
-        'suffix' => 'telemetry',
-        'label' => 'Telemetry',
-    ]);
+    [$organization, $dashboard, $topic, $device] = createDashboardSnapshotBaseContext();
 
-    ParameterDefinition::factory()->create([
-        'schema_version_topic_id' => $topic->id,
-        'key' => 'total_energy_kwh',
-        'label' => 'Total Energy',
-        'json_path' => 'energy.total_energy_kwh',
-        'type' => ParameterDataType::Decimal,
-        'unit' => 'kWh',
-        'sequence' => 1,
-        'required' => true,
-        'is_active' => true,
-        'validation_rules' => ['category' => 'counter', 'min' => 0],
-        'mutation_expression' => null,
-        'validation_error_code' => null,
-    ]);
-
-    $dashboard = IoTDashboard::factory()->create([
-        'organization_id' => $organization->id,
-        'name' => 'Energy Consumption Polling',
-        'slug' => 'energy-consumption-polling',
-    ]);
-    $device = Device::factory()->create([
-        'organization_id' => $organization->id,
-        'device_type_id' => $deviceType->id,
-        'device_schema_version_id' => $schemaVersion->id,
-    ]);
     $widget = IoTDashboardWidget::factory()->create([
         'iot_dashboard_id' => $dashboard->id,
         'device_id' => $device->id,
         'schema_version_topic_id' => $topic->id,
         'type' => 'bar_chart',
-        'title' => 'Hourly Energy Consumption',
-        'series_config' => [
-            ['key' => 'total_energy_kwh', 'label' => 'Total Energy', 'color' => '#0ea5e9'],
+        'title' => 'Energy Consumption',
+        'config' => [
+            'series' => [
+                ['key' => 'total_energy_kwh', 'label' => 'Total Energy', 'color' => '#0ea5e9'],
+            ],
+            'transport' => [
+                'use_websocket' => false,
+                'use_polling' => true,
+                'polling_interval_seconds' => 60,
+            ],
+            'window' => [
+                'lookback_minutes' => $interval === 'daily' ? 43200 : 1440,
+                'max_points' => $interval === 'daily' ? 31 : 24,
+            ],
+            'bar_interval' => $interval,
         ],
-        'options' => ['bar_interval' => 'hourly'],
-        'lookback_minutes' => 1440,
-        'max_points' => 24,
     ]);
 
-    return [$organization, $topic, $widget, $device];
+    return [$organization, $dashboard, $topic, $widget, $device];
 }
 
-function createCurrentGaugeWidgetContext(): array
+function createGaugeWidgetSnapshotContext(): array
 {
-    $organization = Organization::factory()->create();
-    $deviceType = DeviceType::factory()->mqtt()->create([
-        'key' => 'energy_meter_gauge_widget_test',
-    ]);
-    $schema = DeviceSchema::factory()->forDeviceType($deviceType)->create([
-        'name' => 'Energy Meter Gauge Schema',
-    ]);
-    $schemaVersion = DeviceSchemaVersion::factory()->active()->create([
-        'device_schema_id' => $schema->id,
-        'version' => 1,
-    ]);
-    $topic = SchemaVersionTopic::factory()->publish()->create([
-        'device_schema_version_id' => $schemaVersion->id,
-        'key' => 'telemetry',
-        'suffix' => 'telemetry',
-        'label' => 'Telemetry',
-    ]);
+    [$organization, $dashboard, $topic, $device] = createDashboardSnapshotBaseContext();
 
-    ParameterDefinition::factory()->create([
-        'schema_version_topic_id' => $topic->id,
-        'key' => 'A1',
-        'label' => 'Current A1',
-        'json_path' => 'currents.A1',
-        'type' => ParameterDataType::Decimal,
-        'unit' => 'A',
-        'sequence' => 1,
-        'required' => true,
-        'is_active' => true,
-        'validation_rules' => ['min' => 0, 'max' => 150],
-        'mutation_expression' => null,
-        'validation_error_code' => null,
-    ]);
-
-    $dashboard = IoTDashboard::factory()->create([
-        'organization_id' => $organization->id,
-        'name' => 'Energy Current Gauge Polling',
-        'slug' => 'energy-current-gauge-polling',
-    ]);
-    $device = Device::factory()->create([
-        'organization_id' => $organization->id,
-        'device_type_id' => $deviceType->id,
-        'device_schema_version_id' => $schemaVersion->id,
-    ]);
     $widget = IoTDashboardWidget::factory()->create([
         'iot_dashboard_id' => $dashboard->id,
         'device_id' => $device->id,
         'schema_version_topic_id' => $topic->id,
         'type' => 'gauge_chart',
         'title' => 'Phase A Gauge',
-        'series_config' => [
-            ['key' => 'A1', 'label' => 'Phase A', 'color' => '#38bdf8'],
-        ],
-        'options' => [
+        'config' => [
+            'series' => [
+                ['key' => 'A1', 'label' => 'Phase A', 'color' => '#38bdf8'],
+            ],
+            'transport' => [
+                'use_websocket' => true,
+                'use_polling' => true,
+                'polling_interval_seconds' => 10,
+            ],
+            'window' => [
+                'lookback_minutes' => 120,
+                'max_points' => 1,
+            ],
             'gauge_style' => 'classic',
             'gauge_min' => 0,
             'gauge_max' => 100,
@@ -209,18 +192,16 @@ function createCurrentGaugeWidgetContext(): array
                 ['from' => 80, 'to' => 100, 'color' => '#ef4444'],
             ],
         ],
-        'lookback_minutes' => 120,
-        'max_points' => 1,
     ]);
 
-    return [$organization, $topic, $widget, $device];
+    return [$organization, $dashboard, $topic, $widget, $device];
 }
 
-it('returns configured line series points for polling', function (): void {
+it('returns configured line series points for snapshots', function (): void {
     $admin = User::factory()->create(['is_super_admin' => true]);
     $this->actingAs($admin);
 
-    [, $topic, $widget, $device] = createDashboardWidgetContext();
+    [, $dashboard, $topic, $widget, $device] = createLineWidgetSnapshotContext();
     $otherDevice = Device::factory()->create([
         'organization_id' => $device->organization_id,
         'device_type_id' => $device->device_type_id,
@@ -254,20 +235,21 @@ it('returns configured line series points for polling', function (): void {
         'validation_status' => ValidationStatus::Valid,
     ]);
 
-    $response = $this->getJson(route('admin.iot-dashboard.widgets.series', ['widget' => $widget]));
+    $response = $this->getJson(route('admin.iot-dashboard.dashboards.snapshots', [
+        'dashboard' => $dashboard,
+        'widget' => $widget->id,
+    ]));
 
-    $response->assertOk();
-    $payload = $response->json();
+    $response->assertOk()
+        ->assertJsonPath('version', '2.0')
+        ->assertJsonPath('dashboard_id', $dashboard->id);
 
-    expect($payload)->toHaveKeys(['widget_id', 'topic_id', 'device_id', 'series'])
-        ->and($payload['widget_id'])->toBe($widget->id)
-        ->and($payload['topic_id'])->toBe($topic->id)
-        ->and($payload['device_id'])->toBe($device->id)
-        ->and($payload['series'])->toHaveCount(3);
+    $widgetSnapshot = $response->json('widgets.0');
+    $seriesByKey = collect($widgetSnapshot['series'] ?? [])->keyBy('key');
 
-    $seriesByKey = collect($payload['series'])->keyBy('key');
-
-    expect($seriesByKey->keys()->all())->toBe(['V1', 'V2', 'V3'])
+    expect($widgetSnapshot['id'] ?? null)->toBe($widget->id)
+        ->and($widgetSnapshot['type'] ?? null)->toBe('line_chart')
+        ->and($seriesByKey->keys()->all())->toBe(['V1', 'V2', 'V3'])
         ->and($seriesByKey['V1']['points'])->toHaveCount(3)
         ->and($seriesByKey['V2']['points'])->toHaveCount(3)
         ->and($seriesByKey['V3']['points'])->toHaveCount(3)
@@ -279,32 +261,36 @@ it('returns configured line series points for polling', function (): void {
         ->and($seriesByKey['V3']['points'][2]['value'])->not->toBe(999.0);
 });
 
-it('forbids polling endpoint access for users outside the widget organization', function (): void {
-    [, , $widget] = createDashboardWidgetContext();
+it('forbids snapshots endpoint access for users outside the dashboard organization', function (): void {
+    [, $dashboard, , $widget] = createLineWidgetSnapshotContext();
 
     $user = User::factory()->create(['is_super_admin' => false]);
     $this->actingAs($user);
 
-    $this->getJson(route('admin.iot-dashboard.widgets.series', ['widget' => $widget]))
-        ->assertForbidden();
+    $this->getJson(route('admin.iot-dashboard.dashboards.snapshots', [
+        'dashboard' => $dashboard,
+        'widget' => $widget->id,
+    ]))->assertForbidden();
 });
 
-it('allows polling endpoint access for organization members', function (): void {
-    [$organization, , $widget] = createDashboardWidgetContext();
+it('allows snapshots endpoint access for organization members', function (): void {
+    [$organization, $dashboard, , $widget] = createLineWidgetSnapshotContext();
 
     $user = User::factory()->create(['is_super_admin' => false]);
     $user->organizations()->attach($organization->id);
     $this->actingAs($user);
 
-    $this->getJson(route('admin.iot-dashboard.widgets.series', ['widget' => $widget]))
-        ->assertOk();
+    $this->getJson(route('admin.iot-dashboard.dashboards.snapshots', [
+        'dashboard' => $dashboard,
+        'widget' => $widget->id,
+    ]))->assertOk();
 });
 
 it('returns hourly consumption buckets for bar chart widgets', function (): void {
     $admin = User::factory()->create(['is_super_admin' => true]);
     $this->actingAs($admin);
 
-    [, $topic, $widget, $device] = createEnergyConsumptionBarWidgetContext();
+    [, $dashboard, $topic, $widget, $device] = createBarWidgetSnapshotContext('hourly');
 
     $baseTime = now()->subHours(3)->startOfHour();
 
@@ -345,15 +331,19 @@ it('returns hourly consumption buckets for bar chart widgets', function (): void
         'validation_status' => ValidationStatus::Valid,
     ]);
 
-    $response = $this->getJson(route('admin.iot-dashboard.widgets.series', ['widget' => $widget]));
+    $response = $this->getJson(route('admin.iot-dashboard.dashboards.snapshots', [
+        'dashboard' => $dashboard,
+        'widget' => $widget->id,
+    ]));
 
-    $response->assertOk()
-        ->assertJsonPath('interval', 'hourly');
+    $response->assertOk();
 
-    $points = collect($response->json('series.0.points'));
+    $widgetSnapshot = $response->json('widgets.0');
+    $points = collect(data_get($widgetSnapshot, 'series.0.points'));
     $values = $points->pluck('value')->map(fn (mixed $value): float => (float) $value)->all();
 
-    expect($points)->toHaveCount(3)
+    expect($widgetSnapshot['interval'] ?? null)->toBe('hourly')
+        ->and($points)->toHaveCount(3)
         ->and($values)->toBe([1.0, 1.4, 0.9]);
 });
 
@@ -361,7 +351,7 @@ it('returns daily consumption buckets for bar chart widgets', function (): void 
     $admin = User::factory()->create(['is_super_admin' => true]);
     $this->actingAs($admin);
 
-    [, $topic, $widget, $device] = createEnergyConsumptionBarWidgetContext();
+    [, $dashboard, $topic, $widget, $device] = createBarWidgetSnapshotContext('daily');
 
     $dayOne = now()->subDays(2)->startOfDay();
     $dayTwo = now()->subDay()->startOfDay();
@@ -397,27 +387,27 @@ it('returns daily consumption buckets for bar chart widgets', function (): void 
         'validation_status' => ValidationStatus::Valid,
     ]);
 
-    $response = $this->getJson(route('admin.iot-dashboard.widgets.series', [
-        'widget' => $widget,
-        'bar_interval' => 'daily',
-        'lookback_minutes' => 43200,
+    $response = $this->getJson(route('admin.iot-dashboard.dashboards.snapshots', [
+        'dashboard' => $dashboard,
+        'widget' => $widget->id,
     ]));
 
-    $response->assertOk()
-        ->assertJsonPath('interval', 'daily');
+    $response->assertOk();
 
-    $points = collect($response->json('series.0.points'));
+    $widgetSnapshot = $response->json('widgets.0');
+    $points = collect(data_get($widgetSnapshot, 'series.0.points'));
     $values = $points->pluck('value')->map(fn (mixed $value): float => (float) $value)->all();
 
-    expect($points)->toHaveCount(2)
+    expect($widgetSnapshot['interval'] ?? null)->toBe('daily')
+        ->and($points)->toHaveCount(2)
         ->and($values)->toBe([10.0, 5.7]);
 });
 
-it('returns latest value point for gauge chart widgets', function (): void {
+it('returns latest value point for gauge chart widgets based on max points', function (): void {
     $admin = User::factory()->create(['is_super_admin' => true]);
     $this->actingAs($admin);
 
-    [, $topic, $widget, $device] = createCurrentGaugeWidgetContext();
+    [, $dashboard, $topic, $widget, $device] = createGaugeWidgetSnapshotContext();
 
     $baseTime = now()->subMinutes(10);
 
@@ -434,12 +424,18 @@ it('returns latest value point for gauge chart widgets', function (): void {
         'validation_status' => ValidationStatus::Valid,
     ]);
 
-    $response = $this->getJson(route('admin.iot-dashboard.widgets.series', ['widget' => $widget]));
+    $response = $this->getJson(route('admin.iot-dashboard.dashboards.snapshots', [
+        'dashboard' => $dashboard,
+        'widget' => $widget->id,
+    ]));
 
-    $response->assertOk()
-        ->assertJsonPath('widget_id', $widget->id)
-        ->assertJsonPath('series.0.key', 'A1')
-        ->assertJsonPath('series.0.points.0.value', 14.8);
+    $response->assertOk();
 
-    expect($response->json('series.0.points'))->toHaveCount(1);
+    $widgetSnapshot = $response->json('widgets.0');
+
+    $response->assertJsonPath('widgets.0.id', $widget->id)
+        ->assertJsonPath('widgets.0.series.0.key', 'A1')
+        ->assertJsonPath('widgets.0.series.0.points.0.value', 14.8);
+
+    expect(data_get($widgetSnapshot, 'series.0.points'))->toHaveCount(1);
 });

@@ -8,6 +8,7 @@ use App\Domain\DeviceManagement\Models\Device;
 use App\Domain\DeviceSchema\Enums\TopicDirection;
 use App\Domain\DeviceSchema\Models\ParameterDefinition;
 use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
+use App\Domain\IoTDashboard\Enums\WidgetType;
 use App\Domain\IoTDashboard\Models\IoTDashboard;
 use App\Domain\IoTDashboard\Models\IoTDashboardWidget;
 use App\Domain\Shared\Models\Organization;
@@ -97,25 +98,28 @@ class IoTDashboardSeeder extends Seeder
                 'title' => 'Energy Meter Voltages (V1 / V2 / V3)',
             ],
             [
-                'type' => 'line_chart',
+                'type' => WidgetType::LineChart->value,
                 'device_id' => $device->id,
-                'series_config' => $seriesConfiguration,
-                'options' => [
-                    'layout' => [
-                        'x' => 0,
-                        'y' => 0,
-                        'w' => 12,
-                        'h' => 4,
+                'config' => [
+                    'series' => $seriesConfiguration,
+                    'transport' => [
+                        'use_websocket' => true,
+                        'use_polling' => true,
+                        'polling_interval_seconds' => 10,
                     ],
-                    'layout_columns' => 24,
-                    'grid_columns' => 12,
-                    'card_height_px' => 360,
+                    'window' => [
+                        'lookback_minutes' => 120,
+                        'max_points' => 240,
+                    ],
                 ],
-                'use_websocket' => true,
-                'use_polling' => true,
-                'polling_interval_seconds' => 10,
-                'lookback_minutes' => 120,
-                'max_points' => 240,
+                'layout' => [
+                    'x' => 0,
+                    'y' => 0,
+                    'w' => 12,
+                    'h' => 4,
+                    'columns' => 24,
+                    'card_height_px' => 384,
+                ],
                 'sequence' => 1,
             ],
         );
@@ -127,32 +131,35 @@ class IoTDashboardSeeder extends Seeder
                 'title' => 'Hourly Energy Consumption (kWh)',
             ],
             [
-                'type' => 'bar_chart',
+                'type' => WidgetType::BarChart->value,
                 'device_id' => $device->id,
-                'series_config' => [
-                    [
-                        'key' => 'total_energy_kwh',
-                        'label' => (string) ($parameterLabels['total_energy_kwh'] ?? 'Total Energy (kWh)'),
-                        'color' => '#0ea5e9',
+                'config' => [
+                    'series' => [
+                        [
+                            'key' => 'total_energy_kwh',
+                            'label' => (string) ($parameterLabels['total_energy_kwh'] ?? 'Total Energy (kWh)'),
+                            'color' => '#0ea5e9',
+                        ],
                     ],
-                ],
-                'options' => [
-                    'layout' => [
-                        'x' => 0,
-                        'y' => 4,
-                        'w' => 12,
-                        'h' => 4,
+                    'transport' => [
+                        'use_websocket' => false,
+                        'use_polling' => true,
+                        'polling_interval_seconds' => 60,
                     ],
-                    'layout_columns' => 24,
-                    'grid_columns' => 12,
-                    'card_height_px' => 360,
+                    'window' => [
+                        'lookback_minutes' => 1440,
+                        'max_points' => 24,
+                    ],
                     'bar_interval' => 'hourly',
                 ],
-                'use_websocket' => false,
-                'use_polling' => true,
-                'polling_interval_seconds' => 60,
-                'lookback_minutes' => 1440,
-                'max_points' => 24,
+                'layout' => [
+                    'x' => 0,
+                    'y' => 4,
+                    'w' => 12,
+                    'h' => 4,
+                    'columns' => 24,
+                    'card_height_px' => 384,
+                ],
                 'sequence' => 2,
             ],
         );
@@ -164,32 +171,35 @@ class IoTDashboardSeeder extends Seeder
                 'title' => 'Daily Energy Consumption (kWh)',
             ],
             [
-                'type' => 'bar_chart',
+                'type' => WidgetType::BarChart->value,
                 'device_id' => $device->id,
-                'series_config' => [
-                    [
-                        'key' => 'total_energy_kwh',
-                        'label' => (string) ($parameterLabels['total_energy_kwh'] ?? 'Total Energy (kWh)'),
-                        'color' => '#22c55e',
+                'config' => [
+                    'series' => [
+                        [
+                            'key' => 'total_energy_kwh',
+                            'label' => (string) ($parameterLabels['total_energy_kwh'] ?? 'Total Energy (kWh)'),
+                            'color' => '#22c55e',
+                        ],
                     ],
-                ],
-                'options' => [
-                    'layout' => [
-                        'x' => 12,
-                        'y' => 4,
-                        'w' => 12,
-                        'h' => 4,
+                    'transport' => [
+                        'use_websocket' => false,
+                        'use_polling' => true,
+                        'polling_interval_seconds' => 120,
                     ],
-                    'layout_columns' => 24,
-                    'grid_columns' => 12,
-                    'card_height_px' => 360,
+                    'window' => [
+                        'lookback_minutes' => 43200,
+                        'max_points' => 31,
+                    ],
                     'bar_interval' => 'daily',
                 ],
-                'use_websocket' => false,
-                'use_polling' => true,
-                'polling_interval_seconds' => 120,
-                'lookback_minutes' => 43200,
-                'max_points' => 31,
+                'layout' => [
+                    'x' => 12,
+                    'y' => 4,
+                    'w' => 12,
+                    'h' => 4,
+                    'columns' => 24,
+                    'card_height_px' => 384,
+                ],
                 'sequence' => 3,
             ],
         );
@@ -201,25 +211,25 @@ class IoTDashboardSeeder extends Seeder
                 'title' => 'Phase A Current Gauge (A1)',
             ],
             [
-                'type' => 'gauge_chart',
+                'type' => WidgetType::GaugeChart->value,
                 'device_id' => $device->id,
-                'series_config' => [
-                    [
-                        'key' => 'A1',
-                        'label' => (string) ($parameterLabels['A1'] ?? 'Current A1'),
-                        'color' => '#3b82f6',
+                'config' => [
+                    'series' => [
+                        [
+                            'key' => 'A1',
+                            'label' => (string) ($parameterLabels['A1'] ?? 'Current A1'),
+                            'color' => '#3b82f6',
+                        ],
                     ],
-                ],
-                'options' => [
-                    'layout' => [
-                        'x' => 0,
-                        'y' => 8,
-                        'w' => 8,
-                        'h' => 4,
+                    'transport' => [
+                        'use_websocket' => true,
+                        'use_polling' => true,
+                        'polling_interval_seconds' => 10,
                     ],
-                    'layout_columns' => 24,
-                    'grid_columns' => 8,
-                    'card_height_px' => 360,
+                    'window' => [
+                        'lookback_minutes' => 180,
+                        'max_points' => 1,
+                    ],
                     'gauge_style' => 'classic',
                     'gauge_min' => 0,
                     'gauge_max' => 120,
@@ -229,11 +239,14 @@ class IoTDashboardSeeder extends Seeder
                         ['from' => 90, 'to' => 120, 'color' => '#ef4444'],
                     ],
                 ],
-                'use_websocket' => true,
-                'use_polling' => true,
-                'polling_interval_seconds' => 10,
-                'lookback_minutes' => 180,
-                'max_points' => 1,
+                'layout' => [
+                    'x' => 0,
+                    'y' => 8,
+                    'w' => 8,
+                    'h' => 4,
+                    'columns' => 24,
+                    'card_height_px' => 384,
+                ],
                 'sequence' => 4,
             ],
         );

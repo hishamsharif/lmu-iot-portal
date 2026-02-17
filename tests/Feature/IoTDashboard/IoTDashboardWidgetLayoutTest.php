@@ -40,19 +40,21 @@ function createDashboardWidgetLayoutContext(): array
         'iot_dashboard_id' => $dashboard->id,
         'device_id' => $device->id,
         'schema_version_topic_id' => $topic->id,
-        'options' => [],
     ]);
 
-    return [$organization, $widget];
+    return [$organization, $dashboard, $widget];
 }
 
 it('persists widget grid layout coordinates', function (): void {
-    [, $widget] = createDashboardWidgetLayoutContext();
+    [, $dashboard, $widget] = createDashboardWidgetLayoutContext();
 
     $admin = User::factory()->create(['is_super_admin' => true]);
     $this->actingAs($admin);
 
-    $this->postJson(route('admin.iot-dashboard.widgets.layout', ['widget' => $widget]), [
+    $this->postJson(route('admin.iot-dashboard.dashboards.widgets.layout', [
+        'dashboard' => $dashboard,
+        'widget' => $widget,
+    ]), [
         'x' => 1,
         'y' => 2,
         'w' => 24,
@@ -62,23 +64,30 @@ it('persists widget grid layout coordinates', function (): void {
         ->assertJsonPath('layout.x', 1)
         ->assertJsonPath('layout.y', 2)
         ->assertJsonPath('layout.w', 24)
-        ->assertJsonPath('layout.h', 5);
+        ->assertJsonPath('layout.h', 5)
+        ->assertJsonPath('layout.columns', 24)
+        ->assertJsonPath('layout.card_height_px', 480);
 
     $widget->refresh();
 
-    expect(data_get($widget->options, 'layout.x'))->toBe(1)
-        ->and(data_get($widget->options, 'layout.y'))->toBe(2)
-        ->and(data_get($widget->options, 'layout.w'))->toBe(24)
-        ->and(data_get($widget->options, 'layout.h'))->toBe(5);
+    expect($widget->layoutArray()['x'])->toBe(1)
+        ->and($widget->layoutArray()['y'])->toBe(2)
+        ->and($widget->layoutArray()['w'])->toBe(24)
+        ->and($widget->layoutArray()['h'])->toBe(5)
+        ->and($widget->layoutArray()['columns'])->toBe(24)
+        ->and($widget->layoutArray()['card_height_px'])->toBe(480);
 });
 
 it('forbids layout updates for users outside the organization', function (): void {
-    [, $widget] = createDashboardWidgetLayoutContext();
+    [, $dashboard, $widget] = createDashboardWidgetLayoutContext();
 
     $user = User::factory()->create(['is_super_admin' => false]);
     $this->actingAs($user);
 
-    $this->postJson(route('admin.iot-dashboard.widgets.layout', ['widget' => $widget]), [
+    $this->postJson(route('admin.iot-dashboard.dashboards.widgets.layout', [
+        'dashboard' => $dashboard,
+        'widget' => $widget,
+    ]), [
         'x' => 0,
         'y' => 0,
         'w' => 2,
@@ -87,13 +96,16 @@ it('forbids layout updates for users outside the organization', function (): voi
 });
 
 it('allows layout updates for organization members', function (): void {
-    [$organization, $widget] = createDashboardWidgetLayoutContext();
+    [$organization, $dashboard, $widget] = createDashboardWidgetLayoutContext();
 
     $user = User::factory()->create(['is_super_admin' => false]);
     $user->organizations()->attach($organization->id);
     $this->actingAs($user);
 
-    $this->postJson(route('admin.iot-dashboard.widgets.layout', ['widget' => $widget]), [
+    $this->postJson(route('admin.iot-dashboard.dashboards.widgets.layout', [
+        'dashboard' => $dashboard,
+        'widget' => $widget,
+    ]), [
         'x' => 2,
         'y' => 3,
         'w' => 2,

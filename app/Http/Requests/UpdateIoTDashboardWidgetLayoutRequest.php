@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Domain\IoTDashboard\Models\IoTDashboard;
+use App\Domain\IoTDashboard\Models\IoTDashboardWidget;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateIoTDashboardWidgetLayoutRequest extends FormRequest
@@ -13,7 +15,20 @@ class UpdateIoTDashboardWidgetLayoutRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true;
+        /** @var IoTDashboard|null $dashboard */
+        $dashboard = $this->route('dashboard');
+        /** @var IoTDashboardWidget|null $widget */
+        $widget = $this->route('widget');
+
+        if (! $dashboard instanceof IoTDashboard || ! $widget instanceof IoTDashboardWidget) {
+            return false;
+        }
+
+        if ((int) $widget->iot_dashboard_id !== (int) $dashboard->id) {
+            return false;
+        }
+
+        return $this->user()?->can('update', $widget) ?? false;
     }
 
     /**

@@ -2,49 +2,41 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\IoTDashboard\Services;
+namespace App\Domain\IoTDashboard\Widgets\LineChart;
 
+use App\Domain\IoTDashboard\Contracts\WidgetConfig;
+use App\Domain\IoTDashboard\Contracts\WidgetSnapshotResolver;
 use App\Domain\IoTDashboard\Models\IoTDashboardWidget;
 use App\Domain\Telemetry\Models\DeviceTelemetryLog;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use InvalidArgumentException;
 
-class LineChartWidgetDataResolver
+class LineChartSnapshotResolver implements WidgetSnapshotResolver
 {
     /**
-     * @return array{
-     *     widget_id: int,
-     *     topic_id: int,
-     *     generated_at: string,
-     *     series: array<int, array{
-     *         key: string,
-     *         label: string,
-     *         color: string,
-     *         points: array<int, array{timestamp: string, value: int|float}>
-     *     }>
-     * }
+     * @return array<string, mixed>
      */
-    public function resolve(
-        IoTDashboardWidget $widget,
-        int $lookbackMinutes,
-        int $maxPoints,
-    ): array {
+    public function resolve(IoTDashboardWidget $widget, WidgetConfig $config): array
+    {
+        if (! $config instanceof LineChartConfig) {
+            throw new InvalidArgumentException('Line chart widgets require LineChartConfig.');
+        }
+
         $deviceId = is_numeric($widget->device_id) ? (int) $widget->device_id : null;
-        $seriesConfiguration = $widget->resolvedSeriesConfig();
         $logs = $deviceId === null
             ? collect()
             : $this->fetchTelemetryLogs(
                 schemaVersionTopicId: (int) $widget->schema_version_topic_id,
                 deviceId: $deviceId,
-                lookbackMinutes: $lookbackMinutes,
-                maxPoints: $maxPoints,
+                lookbackMinutes: $config->lookbackMinutes(),
+                maxPoints: $config->maxPoints(),
             );
 
         $series = [];
 
-        foreach ($seriesConfiguration as $config) {
+        foreach ($config->series() as $seriesConfiguration) {
             $points = [];
-            $key = $config['key'];
+            $key = $seriesConfiguration['key'];
 
             foreach ($logs as $log) {
                 $value = $this->extractNumericValue($log->transformed_values, $key);
@@ -66,17 +58,15 @@ class LineChartWidgetDataResolver
             }
 
             $series[] = [
-                'key' => $config['key'],
-                'label' => $config['label'],
-                'color' => $config['color'],
+                'key' => $seriesConfiguration['key'],
+                'label' => $seriesConfiguration['label'],
+                'color' => $seriesConfiguration['color'],
                 'points' => $points,
             ];
         }
 
         return [
             'widget_id' => (int) $widget->id,
-            'topic_id' => (int) $widget->schema_version_topic_id,
-            'device_id' => $deviceId,
             'generated_at' => now()->toIso8601String(),
             'series' => $series,
         ];
@@ -87,16 +77,13 @@ class LineChartWidgetDataResolver
      */
     private function fetchTelemetryLogs(
         int $schemaVersionTopicId,
-        ?int $deviceId,
+        int $deviceId,
         int $lookbackMinutes,
         int $maxPoints,
     ): Collection {
         return DeviceTelemetryLog::query()
             ->where('schema_version_topic_id', $schemaVersionTopicId)
-            ->when(
-                is_numeric($deviceId) && $deviceId > 0,
-                fn (Builder $query): Builder => $query->where('device_id', $deviceId),
-            )
+            ->where('device_id', $deviceId)
             ->where('recorded_at', '>=', now()->subMinutes($lookbackMinutes))
             ->orderByDesc('recorded_at')
             ->limit($maxPoints)

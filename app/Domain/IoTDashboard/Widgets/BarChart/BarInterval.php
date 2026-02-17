@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\IoTDashboard\Enums;
+namespace App\Domain\IoTDashboard\Widgets\BarChart;
 
 use Filament\Support\Contracts\HasLabel;
 

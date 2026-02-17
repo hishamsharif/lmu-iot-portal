@@ -18,9 +18,19 @@ if (resolvedToken) {
 	window.axios.defaults.headers.common['X-CSRF-TOKEN'] = resolvedToken;
 }
 
-const enableEcho = document.querySelector('meta[name="enable-echo"]')?.getAttribute('content') === 'true';
+function shouldEnableEcho() {
+	return document.querySelector('meta[name="enable-echo"]')?.getAttribute('content') === 'true';
+}
 
-if (enableEcho) {
+export function initializeEcho(force = false) {
+	if (window.Echo) {
+		return window.Echo;
+	}
+
+	if (!force && !shouldEnableEcho()) {
+		return null;
+	}
+
 	window.Echo = new Echo({
 		broadcaster: 'reverb',
 		key: import.meta.env.VITE_REVERB_APP_KEY,
@@ -40,4 +50,8 @@ if (enableEcho) {
 			  }
 			: undefined,
 	});
+
+	return window.Echo;
 }
+
+initializeEcho();

@@ -1,0 +1,288 @@
+.iot-dashboard-shell {
+    display: grid;
+    gap: 1rem;
+}
+
+.iot-dashboard-grid {
+    min-height: 340px;
+    padding-bottom: 1rem;
+}
+
+.grid-stack > .grid-stack-item {
+    overflow: hidden;
+}
+
+.iot-widget-card {
+    border: 1px solid var(--gray-200);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    background-color: var(--gray-50);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+    display: flex;
+    flex-direction: column;
+}
+
+:is(.dark, .dark *) .iot-widget-card {
+    border-color: var(--gray-700);
+    background-color: var(--gray-900);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.iot-widget-card header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--gray-200);
+}
+
+:is(.dark, .dark *) .iot-widget-card header {
+    border-bottom-color: var(--gray-700);
+}
+
+.iot-widget-title {
+    font-size: 0.95rem;
+    line-height: 1.3rem;
+    font-weight: 700;
+    color: var(--gray-900);
+    margin: 0;
+}
+
+:is(.dark, .dark *) .iot-widget-title {
+    color: var(--gray-100);
+}
+
+.iot-widget-meta {
+    margin-top: 0.25rem;
+    font-size: 0.74rem;
+    line-height: 1.05rem;
+    color: var(--gray-500);
+}
+
+:is(.dark, .dark *) .iot-widget-meta {
+    color: var(--gray-400);
+}
+
+.iot-widget-flags {
+    display: inline-flex;
+    gap: 0.35rem;
+    align-items: center;
+}
+
+.iot-widget-chart {
+    flex: 1 1 0%;
+    min-height: 0;
+    width: 100%;
+}
+
+.iot-empty-state {
+    padding: 1.35rem 1rem;
+    border: 1px dashed var(--gray-300);
+    border-radius: 0.75rem;
+    color: var(--gray-500);
+    font-size: 0.875rem;
+}
+
+:is(.dark, .dark *) .iot-empty-state {
+    border-color: var(--gray-600);
+    color: var(--gray-400);
+}
+
+.grid-stack-placeholder > .placeholder-content {
+    border-radius: 0.75rem;
+    border: 1px dashed rgba(34, 211, 238, 0.45);
+    background: rgba(2, 132, 199, 0.08);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-x='0'] {
+    left: calc(100% / 24 * 0);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-x='1'] {
+    left: calc(100% / 24 * 1);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-x='2'] {
+    left: calc(100% / 24 * 2);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-x='3'] {
+    left: calc(100% / 24 * 3);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-x='4'] {
+    left: calc(100% / 24 * 4);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-x='5'] {
+    left: calc(100% / 24 * 5);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-x='6'] {
+    left: calc(100% / 24 * 6);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-x='7'] {
+    left: calc(100% / 24 * 7);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-x='8'] {
+    left: calc(100% / 24 * 8);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-x='9'] {
+    left: calc(100% / 24 * 9);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-x='10'] {
+    left: calc(100% / 24 * 10);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-x='11'] {
+    left: calc(100% / 24 * 11);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-x='12'] {
+    left: calc(100% / 24 * 12);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-x='13'] {
+    left: calc(100% / 24 * 13);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-x='14'] {
+    left: calc(100% / 24 * 14);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-x='15'] {
+    left: calc(100% / 24 * 15);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-x='16'] {
+    left: calc(100% / 24 * 16);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-x='17'] {
+    left: calc(100% / 24 * 17);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-x='18'] {
+    left: calc(100% / 24 * 18);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-x='19'] {
+    left: calc(100% / 24 * 19);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-x='20'] {
+    left: calc(100% / 24 * 20);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-x='21'] {
+    left: calc(100% / 24 * 21);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-x='22'] {
+    left: calc(100% / 24 * 22);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-x='23'] {
+    left: calc(100% / 24 * 23);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-w='1'] {
+    width: calc(100% / 24 * 1);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-w='2'] {
+    width: calc(100% / 24 * 2);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-w='3'] {
+    width: calc(100% / 24 * 3);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-w='4'] {
+    width: calc(100% / 24 * 4);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-w='5'] {
+    width: calc(100% / 24 * 5);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-w='6'] {
+    width: calc(100% / 24 * 6);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-w='7'] {
+    width: calc(100% / 24 * 7);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-w='8'] {
+    width: calc(100% / 24 * 8);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-w='9'] {
+    width: calc(100% / 24 * 9);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-w='10'] {
+    width: calc(100% / 24 * 10);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-w='11'] {
+    width: calc(100% / 24 * 11);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-w='12'] {
+    width: calc(100% / 24 * 12);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-w='13'] {
+    width: calc(100% / 24 * 13);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-w='14'] {
+    width: calc(100% / 24 * 14);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-w='15'] {
+    width: calc(100% / 24 * 15);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-w='16'] {
+    width: calc(100% / 24 * 16);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-w='17'] {
+    width: calc(100% / 24 * 17);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-w='18'] {
+    width: calc(100% / 24 * 18);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-w='19'] {
+    width: calc(100% / 24 * 19);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-w='20'] {
+    width: calc(100% / 24 * 20);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-w='21'] {
+    width: calc(100% / 24 * 21);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-w='22'] {
+    width: calc(100% / 24 * 22);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-w='23'] {
+    width: calc(100% / 24 * 23);
+}
+
+.iot-dashboard-grid.gs-24 > .grid-stack-item[gs-w='24'] {
+    width: calc(100% / 24 * 24);
+}

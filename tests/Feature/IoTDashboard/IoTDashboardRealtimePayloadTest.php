@@ -9,13 +9,13 @@ use App\Domain\DeviceSchema\Models\ParameterDefinition;
 use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
 use App\Domain\Telemetry\Services\TelemetryLogRecorder;
 use App\Events\TelemetryReceived;
-use Illuminate\Broadcasting\Channel;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 
 uses(RefreshDatabase::class);
 
-it('broadcasts realtime payload data required by line widgets', function (): void {
+it('broadcasts organization-scoped realtime payload data for dashboard widgets', function (): void {
     Event::fake([TelemetryReceived::class]);
 
     $schemaVersion = DeviceSchemaVersion::factory()->active()->create();
@@ -63,12 +63,15 @@ it('broadcasts realtime payload data required by line widgets', function (): voi
     $payload = $event->broadcastWith();
 
     expect($channels)->toHaveCount(1)
-        ->and($channels[0])->toBeInstanceOf(Channel::class)
-        ->and($channels[0]->name)->toBe('telemetry')
+        ->and($channels[0])->toBeInstanceOf(PrivateChannel::class)
+        ->and($channels[0]->name)->toBe('private-iot-dashboard.organization.'.$device->organization_id)
         ->and($event->broadcastAs())->toBe('telemetry.received')
+        ->and($payload['organization_id'] ?? null)->toBe($device->organization_id)
         ->and($payload['device_uuid'] ?? null)->toBe($device->uuid)
         ->and($payload['schema_version_topic_id'] ?? null)->toBe($topic->id)
         ->and($payload['transformed_values']['V1'] ?? null)->toBe(229.6)
         ->and($payload['transformed_values']['V2'] ?? null)->toBe(230.2)
-        ->and($payload['transformed_values']['V3'] ?? null)->toBe(231.4);
+        ->and($payload['transformed_values']['V3'] ?? null)->toBe(231.4)
+        ->and(array_key_exists('raw_payload', $payload))->toBeFalse()
+        ->and(array_key_exists('validation_errors', $payload))->toBeFalse();
 });

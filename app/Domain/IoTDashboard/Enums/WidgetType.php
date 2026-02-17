@@ -6,18 +6,18 @@ namespace App\Domain\IoTDashboard\Enums;
 
 use Filament\Support\Contracts\HasLabel;
 
-enum GaugeStyle: string implements HasLabel
+enum WidgetType: string implements HasLabel
 {
-    case Classic = 'classic';
-    case Progress = 'progress';
-    case Minimal = 'minimal';
+    case LineChart = 'line_chart';
+    case BarChart = 'bar_chart';
+    case GaugeChart = 'gauge_chart';
 
     public function getLabel(): string
     {
         return match ($this) {
-            self::Classic => 'Classic Gauge',
-            self::Progress => 'Progress Gauge',
-            self::Minimal => 'Minimal Gauge',
+            self::LineChart => 'Line Chart',
+            self::BarChart => 'Bar Chart',
+            self::GaugeChart => 'Gauge Chart',
         };
     }
 
