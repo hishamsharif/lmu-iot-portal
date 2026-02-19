@@ -6,6 +6,7 @@ namespace App\Filament\Admin\Resources\DeviceSchema\DeviceSchemaVersions\Relatio
 
 use App\Domain\DeviceSchema\Enums\ControlWidgetType;
 use App\Domain\DeviceSchema\Enums\MetricUnit;
+use App\Domain\DeviceSchema\Enums\ParameterCategory;
 use App\Domain\DeviceSchema\Enums\ParameterDataType;
 use App\Domain\DeviceSchema\Enums\TopicDirection;
 use App\Domain\DeviceSchema\Models\DeviceSchemaVersion;
@@ -25,6 +26,7 @@ use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\SelectColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Validation\Rules\Unique;
@@ -263,6 +265,10 @@ class ParameterDefinitionsRelationManager extends RelationManager
                 TextColumn::make('type')
                     ->formatStateUsing(fn (ParameterDataType|string $state): string => $state instanceof ParameterDataType ? $state->label() : (string) $state)
                     ->badge(),
+
+                SelectColumn::make('category')
+                    ->options(ParameterCategory::getOptions())
+                    ->label('Category'),
 
                 IconColumn::make('required')
                     ->boolean(),

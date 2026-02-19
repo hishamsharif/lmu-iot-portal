@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Filament\Admin\Pages\IoTDashboardSupport;
 
 use App\Domain\DeviceManagement\Models\Device;
+use App\Domain\DeviceSchema\Enums\ParameterCategory;
 use App\Domain\DeviceSchema\Enums\ParameterDataType;
 use App\Domain\DeviceSchema\Enums\TopicDirection;
 use App\Domain\DeviceSchema\Models\ParameterDefinition;
 use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
 use App\Domain\IoTDashboard\Models\IoTDashboard;
+use Illuminate\Database\Eloquent\Builder;
 
 class WidgetFormOptionsService
 {
@@ -108,7 +110,10 @@ class WidgetFormOptionsService
             ->where('schema_version_topic_id', (int) $topicId)
             ->where('is_active', true)
             ->whereIn('type', [ParameterDataType::Integer->value, ParameterDataType::Decimal->value])
-            ->where('validation_rules->category', 'counter')
+            ->where(function (Builder $query): void {
+                $query->where('category', ParameterCategory::Counter->value)
+                    ->orWhere('validation_rules->category', ParameterCategory::Counter->value);
+            })
             ->orderBy('sequence')
             ->get(['key', 'label'])
             ->mapWithKeys(fn (ParameterDefinition $parameter): array => [

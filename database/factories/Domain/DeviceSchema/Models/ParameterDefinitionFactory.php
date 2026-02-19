@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Database\Factories\Domain\DeviceSchema\Models;
 
 use App\Domain\DeviceSchema\Enums\MetricUnit;
+use App\Domain\DeviceSchema\Enums\ParameterCategory;
 use App\Domain\DeviceSchema\Enums\ParameterDataType;
 use App\Domain\DeviceSchema\Models\ParameterDefinition;
 use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
@@ -25,6 +26,7 @@ class ParameterDefinitionFactory extends Factory
     public function definition(): array
     {
         $dataType = $this->faker->randomElement(ParameterDataType::cases());
+        $category = $this->faker->randomElement(ParameterCategory::cases());
 
         return [
             'schema_version_topic_id' => SchemaVersionTopic::factory(),
@@ -32,6 +34,7 @@ class ParameterDefinitionFactory extends Factory
             'label' => $this->faker->words(2, true),
             'json_path' => $this->faker->randomElement(['temp', 'status.temp', '$.status.temp']),
             'type' => $dataType,
+            'category' => $category,
             'unit' => $dataType === ParameterDataType::Decimal
                 ? $this->faker->randomElement([
                     MetricUnit::Celsius->value,
@@ -74,6 +77,7 @@ class ParameterDefinitionFactory extends Factory
             'validation_error_code' => null,
             'mutation_expression' => null,
             'default_value' => 0,
+            'category' => ParameterCategory::Measurement,
             'control_ui' => null,
         ]);
     }

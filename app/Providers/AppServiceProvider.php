@@ -18,11 +18,13 @@ use App\Domain\DeviceManagement\Publishing\Nats\NatsDeviceStateStore;
 use App\Domain\DeviceManagement\Publishing\Nats\NatsPublisherFactory;
 use App\Domain\IoTDashboard\Models\IoTDashboard;
 use App\Domain\IoTDashboard\Models\IoTDashboardWidget;
+use App\Domain\Reporting\Models\ReportRun;
 use App\Domain\Shared\Models\User;
 use App\Events\TelemetryReceived;
 use App\Policies\AutomationWorkflowPolicy;
 use App\Policies\IoTDashboardPolicy;
 use App\Policies\IoTDashboardWidgetPolicy;
+use App\Policies\ReportRunPolicy;
 use Filament\Events\TenantSet;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\Field;
@@ -99,6 +101,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(AutomationWorkflow::class, AutomationWorkflowPolicy::class);
         Gate::policy(IoTDashboard::class, IoTDashboardPolicy::class);
         Gate::policy(IoTDashboardWidget::class, IoTDashboardWidgetPolicy::class);
+        Gate::policy(ReportRun::class, ReportRunPolicy::class);
 
         Event::listen(TenantSet::class, function (): void {
             setPermissionsTeamId(Filament::getTenant()->id);
