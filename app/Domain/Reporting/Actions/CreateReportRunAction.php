@@ -25,7 +25,8 @@ class CreateReportRunAction
             'requested_by_user_id' => $user->id,
         ]);
 
-        $reportRunId = (int) data_get($response, 'data.id');
+        $reportRunIdValue = data_get($response, 'data.id');
+        $reportRunId = is_numeric($reportRunIdValue) ? (int) $reportRunIdValue : 0;
         $reportRun = ReportRun::query()->find($reportRunId);
 
         if (! $reportRun instanceof ReportRun) {

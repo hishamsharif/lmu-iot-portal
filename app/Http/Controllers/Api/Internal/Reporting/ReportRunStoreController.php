@@ -56,6 +56,8 @@ class ReportRunStoreController extends Controller
         $grouping = $isAggregationType && is_string($groupingInput) && trim($groupingInput) !== ''
             ? ReportGrouping::from($groupingInput)
             : null;
+        $formatValue = $request->input('format', 'csv');
+        $format = is_string($formatValue) && trim($formatValue) !== '' ? $formatValue : 'csv';
 
         $reportRun = ReportRun::query()->create([
             'organization_id' => $organizationId,
@@ -63,7 +65,7 @@ class ReportRunStoreController extends Controller
             'requested_by_user_id' => $requestedBy->id,
             'type' => $type,
             'status' => ReportRunStatus::Queued,
-            'format' => (string) $request->input('format', 'csv'),
+            'format' => $format,
             'grouping' => $grouping,
             'parameter_keys' => is_array($request->input('parameter_keys')) ? array_values($request->input('parameter_keys')) : [],
             'from_at' => $request->date('from_at'),

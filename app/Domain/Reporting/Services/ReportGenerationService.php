@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Reporting\Services;
 
+use App\Domain\DeviceManagement\Models\Device;
 use App\Domain\DeviceSchema\Enums\ParameterCategory;
 use App\Domain\DeviceSchema\Enums\ParameterDataType;
 use App\Domain\DeviceSchema\Enums\TopicDirection;
@@ -83,8 +84,8 @@ class ReportGenerationService
         }
 
         $csvContent = $this->buildCsvContent($header, $rows);
-        $storageDisk = (string) config('reporting.storage_disk', 'local');
-        $storageDirectory = trim((string) config('reporting.storage_directory', 'reports'), '/');
+        $storageDisk = $this->stringConfig('reporting.storage_disk', 'local');
+        $storageDirectory = trim($this->stringConfig('reporting.storage_directory', 'reports'), '/');
         $fileName = "report-{$reportRun->id}-{$reportRun->type->value}-".now()->format('Ymd_His').'.csv';
         $storagePath = "{$storageDirectory}/{$fileName}";
 
@@ -150,11 +151,12 @@ class ReportGenerationService
                 $timestamp = CarbonImmutable::instance($log->recorded_at)
                     ->setTimezone($timezone)
                     ->format('Y-m-d H:i:s');
+                $device = $reportRun->device;
 
                 $row = [
                     $timestamp,
-                    (string) ($reportRun->device?->uuid ?? ''),
-                    (string) ($reportRun->device?->name ?? ''),
+                    $device instanceof Device ? (string) $device->uuid : '',
+                    $device instanceof Device ? (string) $device->name : '',
                 ];
 
                 foreach ($parameterKeys as $parameterKey) {
@@ -444,7 +446,7 @@ class ReportGenerationService
                 ReportGrouping::ShiftSchedule => $cursor,
             };
 
-            if ($windowEnd->greaterThan($fromLocal) && $cursor->lessThan($untilLocal)) {
+            if ($windowEnd->greaterThan($fromLocal)) {
                 $windows[] = $this->buildWindow(
                     startLocal: $cursor,
                     endLocal: $windowEnd,
@@ -624,8 +626,8 @@ class ReportGenerationService
             return null;
         }
 
-        $scheduleId = trim((string) ($shiftSchedule['id'] ?? ''));
-        $scheduleName = trim((string) ($shiftSchedule['name'] ?? ''));
+        $scheduleId = $this->stringFromArray($shiftSchedule, 'id');
+        $scheduleName = $this->stringFromArray($shiftSchedule, 'name');
         $windows = is_array($shiftSchedule['windows'] ?? null) ? $shiftSchedule['windows'] : [];
 
         if ($scheduleId === '' || $scheduleName === '' || $windows === []) {
@@ -639,10 +641,10 @@ class ReportGenerationService
                 continue;
             }
 
-            $windowId = trim((string) ($window['id'] ?? ''));
-            $windowName = trim((string) ($window['name'] ?? ''));
-            $start = trim((string) ($window['start'] ?? ''));
-            $end = trim((string) ($window['end'] ?? ''));
+            $windowId = $this->stringFromArray($window, 'id');
+            $windowName = $this->stringFromArray($window, 'name');
+            $start = $this->stringFromArray($window, 'start');
+            $end = $this->stringFromArray($window, 'end');
 
             if (
                 $windowId === ''
@@ -848,8 +850,10 @@ class ReportGenerationService
                     $seconds = $overlapStart->diffInSeconds($overlapEnd);
 
                     if ($seconds > 0) {
-                        $durationsByWindow[$window['key']][$interval['state']] = ($durationsByWindow[$window['key']][$interval['state']] ?? 0)
-                            + $seconds;
+                        $durationsByWindow[$window['key']][$interval['state']] = (int) (
+                            ($durationsByWindow[$window['key']][$interval['state']] ?? 0)
+                            + $seconds
+                        );
                     }
                 }
 
@@ -906,7 +910,7 @@ class ReportGenerationService
                 }
             }
 
-            $cursor = CarbonImmutable::parse((string) $batch->last()?->recorded_at);
+            $cursor = CarbonImmutable::instance($batch->last()->recorded_at);
             $unresolvedKeys = array_values($unresolvedKeys);
         }
 
@@ -944,8 +948,9 @@ class ReportGenerationService
      */
     private function resolveParameterKeys(ReportRun $reportRun, array $availableParameterKeys): array
     {
-        $requestedKeys = is_array($reportRun->parameter_keys) ? $reportRun->parameter_keys : [];
-        $requestedKeys = array_values(array_filter($requestedKeys, fn (mixed $value): bool => is_string($value) && trim($value) !== ''));
+        $requestedKeys = is_array($reportRun->parameter_keys)
+            ? array_values(array_filter($reportRun->parameter_keys, fn (string $value): bool => trim($value) !== ''))
+            : [];
 
         if ($requestedKeys === []) {
             return $availableParameterKeys;
@@ -996,7 +1001,7 @@ class ReportGenerationService
         $map = [];
 
         foreach ($query->get(['key', 'label', 'schema_version_topic_id']) as $parameterDefinition) {
-            if (! is_string($parameterDefinition->key) || trim($parameterDefinition->key) === '') {
+            if (trim($parameterDefinition->key) === '') {
                 continue;
             }
 
@@ -1004,7 +1009,7 @@ class ReportGenerationService
                 continue;
             }
 
-            $map[$parameterDefinition->key] = is_string($parameterDefinition->label) && trim($parameterDefinition->label) !== ''
+            $map[$parameterDefinition->key] = trim($parameterDefinition->label) !== ''
                 ? $parameterDefinition->label
                 : $parameterDefinition->key;
         }
@@ -1032,10 +1037,11 @@ class ReportGenerationService
 
         foreach ($rows as $row) {
             $normalizedRow = array_map(
-                fn (mixed $value): mixed => $this->normalizeCsvValue($value),
+                fn (mixed $value): float|int|string|null => $this->normalizeCsvValue($value),
                 $row,
             );
 
+            /** @var array<int|string, bool|float|int|string|null> $normalizedRow */
             fputcsv($stream, $normalizedRow);
         }
 
@@ -1050,7 +1056,7 @@ class ReportGenerationService
         return $content;
     }
 
-    private function normalizeCsvValue(mixed $value): mixed
+    private function normalizeCsvValue(mixed $value): float|int|string|null
     {
         if ($value === null) {
             return null;
@@ -1061,7 +1067,9 @@ class ReportGenerationService
         }
 
         if (is_array($value)) {
-            return json_encode($value, JSON_UNESCAPED_SLASHES);
+            $encoded = json_encode($value, JSON_UNESCAPED_SLASHES);
+
+            return is_string($encoded) ? $encoded : null;
         }
 
         if ($value instanceof \DateTimeInterface) {
@@ -1069,10 +1077,41 @@ class ReportGenerationService
         }
 
         if (is_object($value) && ! $value instanceof \Stringable) {
-            return json_encode($value, JSON_UNESCAPED_SLASHES);
+            $encoded = json_encode($value, JSON_UNESCAPED_SLASHES);
+
+            return is_string($encoded) ? $encoded : null;
         }
 
-        return $value;
+        if (is_int($value) || is_float($value) || is_string($value)) {
+            return $value;
+        }
+
+        if ($value instanceof \Stringable) {
+            return (string) $value;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<mixed, mixed>  $source
+     */
+    private function stringFromArray(array $source, string $key): string
+    {
+        $value = $source[$key] ?? null;
+
+        if (! is_scalar($value) && ! $value instanceof \Stringable) {
+            return '';
+        }
+
+        return trim((string) $value);
+    }
+
+    private function stringConfig(string $key, string $default): string
+    {
+        $value = config($key, $default);
+
+        return is_string($value) ? $value : $default;
     }
 
     private function formatDuration(int $seconds): string

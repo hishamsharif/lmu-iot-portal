@@ -14,7 +14,35 @@ use Database\Factories\Domain\Reporting\Models\ReportRunFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property int $id
+ * @property int $organization_id
+ * @property int $device_id
+ * @property int|null $requested_by_user_id
+ * @property ReportType $type
+ * @property ReportRunStatus $status
+ * @property ReportGrouping|null $grouping
+ * @property array<int, string>|null $parameter_keys
+ * @property array<string, mixed>|null $payload
+ * @property array<string, mixed>|null $meta
+ * @property Carbon $from_at
+ * @property Carbon $until_at
+ * @property Carbon|null $generated_at
+ * @property Carbon|null $failed_at
+ * @property int|null $row_count
+ * @property int|null $file_size
+ * @property string|null $storage_disk
+ * @property string|null $storage_path
+ * @property string|null $file_name
+ * @property string|null $failure_reason
+ * @property string $timezone
+ * @property string|null $format
+ * @property Organization|null $organization
+ * @property Device|null $device
+ * @property User|null $requestedBy
+ */
 class ReportRun extends Model
 {
     /** @use HasFactory<\Database\Factories\Domain\Reporting\Models\ReportRunFactory> */

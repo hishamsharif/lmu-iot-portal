@@ -22,6 +22,7 @@ use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use BackedEnum;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
@@ -29,6 +30,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
@@ -169,7 +171,7 @@ class Reports extends Page implements HasTable
                             'timezone' => (string) ($data['timezone'] ?? config('app.timezone', 'UTC')),
                             'max_range_days' => is_numeric($data['max_range_days'] ?? null)
                                 ? (int) $data['max_range_days']
-                                : (int) config('reporting.default_max_range_days', 31),
+                                : $this->resolveDefaultMaxRangeDays(),
                             'shift_schedules' => is_array($data['shift_schedules'] ?? null) ? array_values($data['shift_schedules']) : [],
                         ]);
                     } catch (ReportingApiException $exception) {
@@ -365,7 +367,7 @@ class Reports extends Page implements HasTable
     }
 
     /**
-     * @return array<int, mixed>
+     * @return array<int, Action|ActionGroup|Component>
      */
     private function generateReportSchema(): array
     {
@@ -483,7 +485,7 @@ class Reports extends Page implements HasTable
     }
 
     /**
-     * @return array<int, mixed>
+     * @return array<int, Action|ActionGroup|Component>
      */
     private function settingsSchema(): array
     {
@@ -568,7 +570,10 @@ class Reports extends Page implements HasTable
         return Organization::query()
             ->whereIn('id', $organizationIds)
             ->orderBy('name')
-            ->pluck('name', 'id')
+            ->get(['id', 'name'])
+            ->mapWithKeys(fn (Organization $organization): array => [
+                (int) $organization->id => (string) $organization->name,
+            ])
             ->all();
     }
 
@@ -585,14 +590,19 @@ class Reports extends Page implements HasTable
         }
 
         if ($user->isSuperAdmin()) {
-            return Organization::query()->orderBy('name')->pluck('id')->map(fn (mixed $id): int => (int) $id)->all();
+            $organizationIds = Organization::query()->orderBy('name')->pluck('id')->all();
+
+            /** @var array<int, int> $organizationIds */
+            return $organizationIds;
         }
 
-        return $user->organizations()
+        $organizationIds = $user->organizations()
             ->orderBy('name')
             ->pluck('organizations.id')
-            ->map(fn (mixed $id): int => (int) $id)
             ->all();
+
+        /** @var array<int, int> $organizationIds */
+        return $organizationIds;
     }
 
     private function defaultOrganizationId(): ?int
@@ -642,16 +652,22 @@ class Reports extends Page implements HasTable
 
         $device = Device::query()->find((int) $deviceId);
 
-        if (! $device instanceof Device || ! is_numeric($device->device_schema_version_id)) {
+        if (! $device instanceof Device) {
+            return [];
+        }
+
+        $schemaVersionId = (int) $device->device_schema_version_id;
+
+        if ($schemaVersionId <= 0) {
             return [];
         }
 
         $reportType = ReportType::tryFrom($this->normalizeReportTypeValue($reportTypeValue));
         $query = ParameterDefinition::query()
             ->where('is_active', true)
-            ->whereHas('topic', function (Builder $builder) use ($device): void {
+            ->whereHas('topic', function (Builder $builder) use ($schemaVersionId): void {
                 $builder
-                    ->where('device_schema_version_id', $device->device_schema_version_id)
+                    ->where('device_schema_version_id', $schemaVersionId)
                     ->where('direction', TopicDirection::Publish->value);
             })
             ->orderBy('sequence');
@@ -691,15 +707,21 @@ class Reports extends Page implements HasTable
 
         $device = Device::query()->find((int) $deviceId);
 
-        if (! $device instanceof Device || ! is_numeric($device->device_schema_version_id)) {
+        if (! $device instanceof Device) {
+            return [];
+        }
+
+        $schemaVersionId = (int) $device->device_schema_version_id;
+
+        if ($schemaVersionId <= 0) {
             return [];
         }
 
         $parameterDefinitions = ParameterDefinition::query()
             ->where('is_active', true)
-            ->whereHas('topic', function (Builder $builder) use ($device): void {
+            ->whereHas('topic', function (Builder $builder) use ($schemaVersionId): void {
                 $builder
-                    ->where('device_schema_version_id', $device->device_schema_version_id)
+                    ->where('device_schema_version_id', $schemaVersionId)
                     ->where('direction', TopicDirection::Publish->value);
             })
             ->get(['type', 'category', 'validation_rules']);
@@ -885,13 +907,9 @@ class Reports extends Page implements HasTable
         $resolvedShiftSchedules = [];
 
         foreach ($shiftSchedules as $shiftSchedule) {
-            if (! is_array($shiftSchedule)) {
-                continue;
-            }
-
-            $scheduleId = trim((string) ($shiftSchedule['id'] ?? ''));
-            $scheduleName = trim((string) ($shiftSchedule['name'] ?? ''));
-            $windows = is_array($shiftSchedule['windows'] ?? null) ? $shiftSchedule['windows'] : [];
+            $scheduleId = trim($shiftSchedule['id']);
+            $scheduleName = trim($shiftSchedule['name']);
+            $windows = $shiftSchedule['windows'];
 
             if ($scheduleId === '' || $scheduleName === '' || $windows === []) {
                 continue;
@@ -900,14 +918,10 @@ class Reports extends Page implements HasTable
             $resolvedWindows = [];
 
             foreach ($windows as $window) {
-                if (! is_array($window)) {
-                    continue;
-                }
-
-                $windowId = trim((string) ($window['id'] ?? ''));
-                $windowName = trim((string) ($window['name'] ?? ''));
-                $start = trim((string) ($window['start'] ?? ''));
-                $end = trim((string) ($window['end'] ?? ''));
+                $windowId = trim($window['id']);
+                $windowName = trim($window['name']);
+                $start = trim($window['start']);
+                $end = trim($window['end']);
 
                 if (
                     $windowId === ''
@@ -963,10 +977,12 @@ class Reports extends Page implements HasTable
         return [
             'organization_id' => $resolvedOrganizationId,
             'type' => ReportType::ParameterValues->value,
-            'grouping' => ReportGrouping::Hourly->value,
+            'grouping' => $this->normalizeReportGroupingValue(ReportGrouping::Hourly),
             'from_at' => now()->subDay()->startOfDay(),
             'until_at' => now()->subDay()->startOfDay(),
-            'timezone' => $settings?->timezone ?? (string) config('app.timezone', 'UTC'),
+            'timezone' => $settings instanceof OrganizationReportSetting
+                ? $settings->timezone
+                : $this->resolveDefaultTimezone(),
         ];
     }
 
@@ -989,8 +1005,12 @@ class Reports extends Page implements HasTable
 
         return [
             'organization_id' => $resolvedOrganizationId,
-            'timezone' => $settings?->timezone ?? (string) config('app.timezone', 'UTC'),
-            'max_range_days' => $settings?->max_range_days ?? (int) config('reporting.default_max_range_days', 31),
+            'timezone' => $settings instanceof OrganizationReportSetting
+                ? $settings->timezone
+                : $this->resolveDefaultTimezone(),
+            'max_range_days' => $settings instanceof OrganizationReportSetting
+                ? $settings->max_range_days
+                : $this->resolveDefaultMaxRangeDays(),
             'shift_schedules' => is_array($settings?->shift_schedules) ? $settings->shift_schedules : [],
         ];
     }
@@ -1009,7 +1029,11 @@ class Reports extends Page implements HasTable
         }
 
         if (is_string($value)) {
-            return ReportType::tryFrom($value)?->value ?? ReportType::ParameterValues->value;
+            $resolvedType = ReportType::tryFrom($value);
+
+            return $resolvedType instanceof ReportType
+                ? $resolvedType->value
+                : ReportType::ParameterValues->value;
         }
 
         return ReportType::ParameterValues->value;
@@ -1022,7 +1046,9 @@ class Reports extends Page implements HasTable
         }
 
         if (is_string($value)) {
-            return ReportType::tryFrom($value)?->value;
+            $resolvedType = ReportType::tryFrom($value);
+
+            return $resolvedType instanceof ReportType ? $resolvedType->value : null;
         }
 
         return null;
@@ -1034,11 +1060,15 @@ class Reports extends Page implements HasTable
             return $value->value;
         }
 
-        if (is_string($value)) {
-            return ReportGrouping::tryFrom($value)?->value ?? ReportGrouping::Hourly->value;
+        if (! is_string($value)) {
+            return ReportGrouping::Hourly->value;
         }
 
-        return ReportGrouping::Hourly->value;
+        $resolvedGrouping = ReportGrouping::tryFrom($value);
+
+        return $resolvedGrouping instanceof ReportGrouping
+            ? $resolvedGrouping->value
+            : ReportGrouping::Hourly->value;
     }
 
     private function formatBytes(mixed $value): string
@@ -1054,5 +1084,19 @@ class Reports extends Page implements HasTable
         $normalized = $bytes / (1024 ** $power);
 
         return number_format($normalized, $power === 0 ? 0 : 1).' '.$units[$power];
+    }
+
+    private function resolveDefaultTimezone(): string
+    {
+        $timezone = config('app.timezone', 'UTC');
+
+        return is_string($timezone) ? $timezone : 'UTC';
+    }
+
+    private function resolveDefaultMaxRangeDays(): int
+    {
+        $value = config('reporting.default_max_range_days', 31);
+
+        return is_numeric($value) ? (int) $value : 31;
     }
 }

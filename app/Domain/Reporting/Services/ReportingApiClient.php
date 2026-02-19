@@ -78,10 +78,10 @@ class ReportingApiClient
 
     private function request(): PendingRequest
     {
-        $baseUrl = rtrim((string) config('reporting.api.base_url', config('app.url')), '/');
-        $timeoutSeconds = (int) config('reporting.api.timeout_seconds', 30);
-        $token = (string) config('reporting.api.token', '');
-        $tokenHeader = (string) config('reporting.api.token_header', 'X-Reporting-Token');
+        $baseUrl = rtrim($this->stringConfig('reporting.api.base_url', $this->stringConfig('app.url', '')), '/');
+        $timeoutSeconds = $this->intConfig('reporting.api.timeout_seconds', 30);
+        $token = $this->stringConfig('reporting.api.token', '');
+        $tokenHeader = $this->stringConfig('reporting.api.token_header', 'X-Reporting-Token');
 
         if ($token === '') {
             throw new ReportingApiException('Reporting API token is not configured.');
@@ -95,5 +95,19 @@ class ReportingApiClient
     private function endpoint(string $path): string
     {
         return '/api/internal/reporting'.(str_starts_with($path, '/') ? $path : "/{$path}");
+    }
+
+    private function stringConfig(string $key, string $default): string
+    {
+        $value = config($key, $default);
+
+        return is_string($value) ? $value : $default;
+    }
+
+    private function intConfig(string $key, int $default): int
+    {
+        $value = config($key, $default);
+
+        return is_numeric($value) ? (int) $value : $default;
     }
 }

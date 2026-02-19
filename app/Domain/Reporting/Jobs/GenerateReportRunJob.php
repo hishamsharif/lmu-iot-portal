@@ -28,8 +28,10 @@ class GenerateReportRunJob implements ShouldQueue
     public function __construct(
         public readonly int $reportRunId,
     ) {
-        $connection = (string) config('reporting.queue_connection', config('queue.default', 'database'));
-        $queue = (string) config('reporting.queue', 'default');
+        $connectionValue = config('reporting.queue_connection', config('queue.default', 'database'));
+        $queueValue = config('reporting.queue', 'default');
+        $connection = is_string($connectionValue) ? trim($connectionValue) : '';
+        $queue = is_string($queueValue) ? trim($queueValue) : '';
 
         $this->onConnection($connection !== '' ? $connection : 'database');
         $this->onQueue($queue !== '' ? $queue : 'default');

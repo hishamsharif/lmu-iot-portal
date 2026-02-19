@@ -56,8 +56,8 @@ class OrganizationReportSettingsUpdateController extends Controller
                 continue;
             }
 
-            $name = trim((string) ($shiftSchedule['name'] ?? ''));
-            $scheduleId = trim((string) ($shiftSchedule['id'] ?? ''));
+            $name = $this->stringFromArray($shiftSchedule, 'name');
+            $scheduleId = $this->stringFromArray($shiftSchedule, 'id');
             $windows = is_array($shiftSchedule['windows'] ?? null) ? $shiftSchedule['windows'] : [];
 
             if ($name === '' || $windows === []) {
@@ -71,10 +71,10 @@ class OrganizationReportSettingsUpdateController extends Controller
                     continue;
                 }
 
-                $windowId = trim((string) ($window['id'] ?? ''));
-                $windowName = trim((string) ($window['name'] ?? ''));
-                $start = trim((string) ($window['start'] ?? ''));
-                $end = trim((string) ($window['end'] ?? ''));
+                $windowId = $this->stringFromArray($window, 'id');
+                $windowName = $this->stringFromArray($window, 'name');
+                $start = $this->stringFromArray($window, 'start');
+                $end = $this->stringFromArray($window, 'end');
 
                 if ($windowName === '' || $start === '' || $end === '') {
                     continue;
@@ -100,5 +100,19 @@ class OrganizationReportSettingsUpdateController extends Controller
         }
 
         return $normalizedSchedules;
+    }
+
+    /**
+     * @param  array<mixed, mixed>  $source
+     */
+    private function stringFromArray(array $source, string $key): string
+    {
+        $value = $source[$key] ?? null;
+
+        if (! is_scalar($value) && ! $value instanceof \Stringable) {
+            return '';
+        }
+
+        return trim((string) $value);
     }
 }

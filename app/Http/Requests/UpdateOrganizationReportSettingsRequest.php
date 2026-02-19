@@ -55,8 +55,8 @@ class UpdateOrganizationReportSettingsRequest extends FormRequest
                     continue;
                 }
 
-                $scheduleName = trim((string) ($shiftSchedule['name'] ?? ''));
-                $windows = is_array($shiftSchedule['windows'] ?? null) ? $shiftSchedule['windows'] : [];
+                $scheduleName = $this->stringFromArray($shiftSchedule, 'name');
+                $windows = $this->normalizeWindows($shiftSchedule['windows'] ?? null);
 
                 if ($scheduleName !== '') {
                     $normalizedScheduleName = mb_strtolower($scheduleName);
@@ -109,18 +109,14 @@ class UpdateOrganizationReportSettingsRequest extends FormRequest
     }
 
     /**
-     * @param  array<int, array{name?: mixed}>  $windows
+     * @param  array<int, array{name: string, start: string, end: string}>  $windows
      */
     private function hasUniqueWindowNames(array $windows): bool
     {
         $names = [];
 
         foreach ($windows as $window) {
-            if (! is_array($window)) {
-                continue;
-            }
-
-            $windowName = trim((string) ($window['name'] ?? ''));
+            $windowName = $window['name'];
 
             if ($windowName === '') {
                 continue;
@@ -139,7 +135,7 @@ class UpdateOrganizationReportSettingsRequest extends FormRequest
     }
 
     /**
-     * @param  array<int, array{start?: mixed, end?: mixed}>  $orderedShiftWindows
+     * @param  array<int, array{name: string, start: string, end: string}>  $orderedShiftWindows
      */
     private function hasNonOverlappingWindows(array $orderedShiftWindows): bool
     {
@@ -151,12 +147,8 @@ class UpdateOrganizationReportSettingsRequest extends FormRequest
         $seenStarts = [];
 
         foreach ($orderedShiftWindows as $shiftWindow) {
-            if (! is_array($shiftWindow)) {
-                return false;
-            }
-
-            $startMinutes = $this->timeToMinutes(trim((string) ($shiftWindow['start'] ?? '')));
-            $endMinutes = $this->timeToMinutes(trim((string) ($shiftWindow['end'] ?? '')));
+            $startMinutes = $this->timeToMinutes($shiftWindow['start']);
+            $endMinutes = $this->timeToMinutes($shiftWindow['end']);
 
             if ($startMinutes === null || $endMinutes === null) {
                 return false;
@@ -206,5 +198,53 @@ class UpdateOrganizationReportSettingsRequest extends FormRequest
         }
 
         return true;
+    }
+
+    /**
+     * @return array<int, array{name: string, start: string, end: string}>
+     */
+    private function normalizeWindows(mixed $windows): array
+    {
+        if (! is_array($windows)) {
+            return [];
+        }
+
+        $normalizedWindows = [];
+
+        foreach ($windows as $window) {
+            if (! is_array($window)) {
+                continue;
+            }
+
+            $name = $this->stringFromArray($window, 'name');
+            $start = $this->stringFromArray($window, 'start');
+            $end = $this->stringFromArray($window, 'end');
+
+            if ($name === '' || $start === '' || $end === '') {
+                continue;
+            }
+
+            $normalizedWindows[] = [
+                'name' => $name,
+                'start' => $start,
+                'end' => $end,
+            ];
+        }
+
+        return $normalizedWindows;
+    }
+
+    /**
+     * @param  array<mixed, mixed>  $source
+     */
+    private function stringFromArray(array $source, string $key): string
+    {
+        $value = $source[$key] ?? null;
+
+        if (! is_scalar($value) && ! $value instanceof \Stringable) {
+            return '';
+        }
+
+        return trim((string) $value);
     }
 }

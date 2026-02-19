@@ -20,7 +20,8 @@ class UpdateOrganizationReportSettingsAction
     public function __invoke(array $payload): OrganizationReportSetting
     {
         $response = $this->reportingApiClient->updateOrganizationSettings($payload);
-        $organizationId = (int) data_get($response, 'data.organization_id');
+        $organizationIdValue = data_get($response, 'data.organization_id');
+        $organizationId = is_numeric($organizationIdValue) ? (int) $organizationIdValue : 0;
 
         $settings = OrganizationReportSetting::query()
             ->where('organization_id', $organizationId)

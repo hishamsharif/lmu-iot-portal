@@ -153,6 +153,7 @@ protected function isAccessible(User $user, ?string $path = null): bool
 
 - Every change must be programmatically tested. Write a new test or update an existing test, then run the affected tests to make sure they pass.
 - Run the minimum number of tests needed to ensure code quality and speed. Use `php artisan test --compact` with a specific filename or filter.
+- At the end of developing a module, always run `vendor/bin/phpstan analyse --no-progress` and fix all reported issues before finalizing.
 
 === laravel/core rules ===
 

@@ -13,8 +13,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
+ * @property string $key
+ * @property string $label
+ * @property int $schema_version_topic_id
  * @property ParameterDataType $type
  * @property ParameterCategory $category
+ * @property array<string, mixed>|null $validation_rules
+ * @property array<string, mixed>|null $control_ui
  */
 class ParameterDefinition extends Model
 {

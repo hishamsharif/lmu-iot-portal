@@ -18,8 +18,10 @@ class EnsureInternalReportingToken
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $headerName = (string) config('reporting.api.token_header', 'X-Reporting-Token');
-        $expectedToken = (string) config('reporting.api.token', '');
+        $headerNameValue = config('reporting.api.token_header', 'X-Reporting-Token');
+        $expectedTokenValue = config('reporting.api.token', '');
+        $headerName = is_string($headerNameValue) ? $headerNameValue : 'X-Reporting-Token';
+        $expectedToken = is_string($expectedTokenValue) ? $expectedTokenValue : '';
         $receivedToken = $request->header($headerName);
 
         if ($expectedToken === '' || ! is_string($receivedToken) || ! hash_equals($expectedToken, $receivedToken)) {

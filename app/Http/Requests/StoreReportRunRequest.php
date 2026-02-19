@@ -77,7 +77,7 @@ class StoreReportRunRequest extends FormRequest
                 ->value('max_range_days');
             $maxRangeDays = is_numeric($configuredMaxDays)
                 ? (int) $configuredMaxDays
-                : (int) config('reporting.default_max_range_days', 31);
+                : $this->resolveDefaultMaxRangeDays();
             $selectedDays = max(1, (int) ceil($fromAt->diffInSeconds($untilAt) / 86400));
 
             if ($selectedDays > $maxRangeDays) {
@@ -114,7 +114,7 @@ class StoreReportRunRequest extends FormRequest
 
     private function isAggregationRequired(): bool
     {
-        $type = ReportType::tryFrom((string) $this->input('type'));
+        $type = ReportType::tryFrom($this->string('type')->toString());
 
         return in_array($type, [ReportType::CounterConsumption, ReportType::StateUtilization], true);
     }
@@ -128,8 +128,8 @@ class StoreReportRunRequest extends FormRequest
             return null;
         }
 
-        $scheduleId = trim((string) ($shiftSchedule['id'] ?? ''));
-        $scheduleName = trim((string) ($shiftSchedule['name'] ?? ''));
+        $scheduleId = $this->stringFromArray($shiftSchedule, 'id');
+        $scheduleName = $this->stringFromArray($shiftSchedule, 'name');
         $windows = $shiftSchedule['windows'] ?? null;
 
         if ($scheduleId === '' || $scheduleName === '' || ! is_array($windows) || $windows === []) {
@@ -143,10 +143,10 @@ class StoreReportRunRequest extends FormRequest
                 continue;
             }
 
-            $windowId = trim((string) ($window['id'] ?? ''));
-            $windowName = trim((string) ($window['name'] ?? ''));
-            $start = trim((string) ($window['start'] ?? ''));
-            $end = trim((string) ($window['end'] ?? ''));
+            $windowId = $this->stringFromArray($window, 'id');
+            $windowName = $this->stringFromArray($window, 'name');
+            $start = $this->stringFromArray($window, 'start');
+            $end = $this->stringFromArray($window, 'end');
 
             if (
                 $windowId === ''
@@ -256,5 +256,26 @@ class StoreReportRunRequest extends FormRequest
         }
 
         return ($hour * 60) + $minute;
+    }
+
+    private function resolveDefaultMaxRangeDays(): int
+    {
+        $value = config('reporting.default_max_range_days', 31);
+
+        return is_numeric($value) ? (int) $value : 31;
+    }
+
+    /**
+     * @param  array<mixed, mixed>  $source
+     */
+    private function stringFromArray(array $source, string $key): string
+    {
+        $value = $source[$key] ?? null;
+
+        if (! is_scalar($value) && ! $value instanceof \Stringable) {
+            return '';
+        }
+
+        return trim((string) $value);
     }
 }

@@ -14,7 +14,14 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property string $id
+ * @property int $device_id
+ * @property Carbon $recorded_at
+ * @property array<string, mixed>|null $transformed_values
+ */
 class DeviceTelemetryLog extends Model
 {
     /** @use HasFactory<\Database\Factories\Domain\Telemetry\Models\DeviceTelemetryLogFactory> */

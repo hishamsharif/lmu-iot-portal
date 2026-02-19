@@ -69,10 +69,12 @@ class ShiftWindowResolver
     public function resolveTimezone(string $timezone): string
     {
         $trimmed = trim($timezone);
+        $configuredTimezone = config('app.timezone', 'UTC');
+        $fallbackTimezone = is_string($configuredTimezone) ? $configuredTimezone : 'UTC';
 
         return in_array($trimmed, timezone_identifiers_list(), true)
             ? $trimmed
-            : (string) config('app.timezone', 'UTC');
+            : $fallbackTimezone;
     }
 
     /**
@@ -80,13 +82,17 @@ class ShiftWindowResolver
      */
     public function resolveShiftTimes(?string $shiftStart, ?string $shiftEnd): ?array
     {
+        if (! is_string($shiftStart) || ! is_string($shiftEnd)) {
+            return null;
+        }
+
         if (! $this->isValidShiftTime($shiftStart) || ! $this->isValidShiftTime($shiftEnd)) {
             return null;
         }
 
         return [
-            'start' => (string) $shiftStart,
-            'end' => (string) $shiftEnd,
+            'start' => $shiftStart,
+            'end' => $shiftEnd,
         ];
     }
 

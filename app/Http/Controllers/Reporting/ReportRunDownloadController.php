@@ -18,7 +18,9 @@ class ReportRunDownloadController extends Controller
         ReportRun $reportRun,
         DownloadReportRunAction $downloadReportRunAction,
     ): Response {
-        abort_unless($request->user()?->can('view', $reportRun), Response::HTTP_FORBIDDEN);
+        $user = $request->user();
+
+        abort_unless($user !== null && $user->can('view', $reportRun), Response::HTTP_FORBIDDEN);
 
         try {
             $apiResponse = $downloadReportRunAction($reportRun);
@@ -26,8 +28,14 @@ class ReportRunDownloadController extends Controller
             abort($exception->status > 0 ? $exception->status : Response::HTTP_BAD_GATEWAY, $exception->getMessage());
         }
 
-        $contentType = (string) $apiResponse->header('Content-Type', 'text/csv; charset=UTF-8');
-        $contentDisposition = (string) $apiResponse->header('Content-Disposition', "attachment; filename=\"report-{$reportRun->id}.csv\"");
+        $resolvedContentType = $apiResponse->header('Content-Type');
+        $resolvedContentDisposition = $apiResponse->header('Content-Disposition');
+        $contentType = trim($resolvedContentType) !== ''
+            ? $resolvedContentType
+            : 'text/csv; charset=UTF-8';
+        $contentDisposition = trim($resolvedContentDisposition) !== ''
+            ? $resolvedContentDisposition
+            : "attachment; filename=\"report-{$reportRun->id}.csv\"";
 
         return response($apiResponse->body(), Response::HTTP_OK, [
             'Content-Type' => $contentType,
