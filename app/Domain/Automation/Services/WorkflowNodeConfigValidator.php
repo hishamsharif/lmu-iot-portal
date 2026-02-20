@@ -16,7 +16,10 @@ use RuntimeException;
 
 class WorkflowNodeConfigValidator
 {
-    public function __construct(private readonly CommandPayloadResolver $commandPayloadResolver) {}
+    public function __construct(
+        private readonly CommandPayloadResolver $commandPayloadResolver,
+        private readonly WorkflowQueryExecutor $workflowQueryExecutor,
+    ) {}
 
     public function validate(AutomationWorkflow $workflow, WorkflowGraph $graph): void
     {
@@ -45,6 +48,18 @@ class WorkflowNodeConfigValidator
 
             if ($nodeType === 'command') {
                 $this->validateCommandNode($organizationId, $resolvedNodeId, $node);
+
+                continue;
+            }
+
+            if ($nodeType === 'query') {
+                $this->validateQueryNode($organizationId, $resolvedNodeId, $node);
+
+                continue;
+            }
+
+            if ($nodeType === 'alert') {
+                $this->validateAlertNode($resolvedNodeId, $node);
             }
         }
     }
@@ -143,8 +158,8 @@ class WorkflowNodeConfigValidator
         $operator = Arr::get($guided, 'operator');
         $right = Arr::get($guided, 'right');
 
-        if ($left !== 'trigger.value') {
-            throw new RuntimeException("Condition node [{$nodeId}] guided left operand must be trigger.value.");
+        if (! in_array($left, ['trigger.value', 'query.value'], true)) {
+            throw new RuntimeException("Condition node [{$nodeId}] guided left operand must be trigger.value or query.value.");
         }
 
         if (! in_array($operator, ['>', '>=', '<', '<=', '==', '!='], true)) {
@@ -215,6 +230,101 @@ class WorkflowNodeConfigValidator
             $failedKeys = implode(', ', array_keys($errors));
 
             throw new RuntimeException("Command node [{$nodeId}] has invalid payload values: {$failedKeys}.");
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $node
+     */
+    private function validateQueryNode(int $organizationId, string $nodeId, array $node): void
+    {
+        $config = Arr::get($node, 'data.config');
+        if (! is_array($config)) {
+            throw new RuntimeException("Query node [{$nodeId}] requires a configuration.");
+        }
+
+        try {
+            $this->workflowQueryExecutor->validateConfig($organizationId, $this->normalizeStringKeyArray($config));
+        } catch (RuntimeException $exception) {
+            throw new RuntimeException("Query node [{$nodeId}] {$exception->getMessage()}");
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $node
+     */
+    private function validateAlertNode(string $nodeId, array $node): void
+    {
+        $config = Arr::get($node, 'data.config');
+
+        if (! is_array($config) || $config === []) {
+            return;
+        }
+
+        $alertRuntimeKeys = ['channel', 'recipients', 'subject', 'body', 'cooldown'];
+        $hasRuntimeConfig = false;
+
+        foreach ($alertRuntimeKeys as $alertRuntimeKey) {
+            if (array_key_exists($alertRuntimeKey, $config)) {
+                $hasRuntimeConfig = true;
+
+                break;
+            }
+        }
+
+        if (! $hasRuntimeConfig) {
+            return;
+        }
+
+        $channel = Arr::get($config, 'channel');
+        if ($channel !== 'email') {
+            throw new RuntimeException("Alert node [{$nodeId}] channel must be email.");
+        }
+
+        $recipients = Arr::get($config, 'recipients');
+        if (! is_array($recipients) || $recipients === []) {
+            throw new RuntimeException("Alert node [{$nodeId}] requires at least one recipient.");
+        }
+
+        $hasValidRecipient = false;
+
+        foreach ($recipients as $recipient) {
+            if (! is_string($recipient) || trim($recipient) === '') {
+                continue;
+            }
+
+            if (filter_var(trim($recipient), FILTER_VALIDATE_EMAIL) === false) {
+                throw new RuntimeException("Alert node [{$nodeId}] recipients must be valid email addresses.");
+            }
+
+            $hasValidRecipient = true;
+        }
+
+        if (! $hasValidRecipient) {
+            throw new RuntimeException("Alert node [{$nodeId}] requires at least one recipient.");
+        }
+
+        $subject = Arr::get($config, 'subject');
+        $body = Arr::get($config, 'body');
+
+        if (! is_string($subject) || trim($subject) === '') {
+            throw new RuntimeException("Alert node [{$nodeId}] subject is required.");
+        }
+
+        if (! is_string($body) || trim($body) === '') {
+            throw new RuntimeException("Alert node [{$nodeId}] body is required.");
+        }
+
+        $cooldown = Arr::get($config, 'cooldown');
+        if (! is_array($cooldown)) {
+            throw new RuntimeException("Alert node [{$nodeId}] cooldown configuration is required.");
+        }
+
+        $cooldownValue = $this->resolvePositiveInt($cooldown['value'] ?? null);
+        $cooldownUnit = $cooldown['unit'] ?? null;
+
+        if ($cooldownValue === null || ! is_string($cooldownUnit) || ! in_array($cooldownUnit, ['minute', 'hour', 'day'], true)) {
+            throw new RuntimeException("Alert node [{$nodeId}] cooldown must include positive value and valid unit.");
         }
     }
 

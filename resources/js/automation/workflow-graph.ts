@@ -8,7 +8,7 @@ export type TelemetryTriggerNodeConfig = {
 };
 
 export type ConditionGuidedConfig = {
-    left: 'trigger.value';
+    left: 'trigger.value' | 'query.value';
     operator: '>' | '>=' | '<' | '<=' | '==' | '!=';
     right: number;
 };
@@ -28,6 +28,32 @@ export type CommandNodeConfig = {
     payload_mode: 'schema_form';
 };
 
+export type QueryNodeConfig = {
+    mode: 'sql';
+    window: {
+        size: number;
+        unit: 'minute' | 'hour' | 'day';
+    };
+    sources: Array<{
+        alias: string;
+        device_id: number;
+        topic_id: number;
+        parameter_definition_id: number;
+    }>;
+    sql: string;
+};
+
+export type AlertNodeConfig = {
+    channel: 'email';
+    recipients: string[];
+    subject: string;
+    body: string;
+    cooldown: {
+        value: number;
+        unit: 'minute' | 'hour' | 'day';
+    };
+};
+
 export type GenericNodeConfig = Record<string, unknown>;
 
 export type WorkflowNodeData = {
@@ -38,6 +64,8 @@ export type WorkflowNodeData = {
         | TelemetryTriggerNodeConfig
         | ConditionNodeConfig
         | CommandNodeConfig
+        | QueryNodeConfig
+        | AlertNodeConfig
         | GenericNodeConfig;
     [key: string]: unknown;
 };

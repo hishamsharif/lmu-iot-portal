@@ -183,3 +183,241 @@ it('fails when command payload values do not match parameter requirements', func
     expect(fn () => app(WorkflowNodeConfigValidator::class)->validate($workflow, $graph))
         ->toThrow(RuntimeException::class, 'invalid payload values: brightness');
 });
+
+it('validates query node configuration when source and sql are valid', function (): void {
+    $organization = createOrganizationRecord();
+    $workflow = createWorkflowRecord($organization);
+    $fixture = createWorkflowDeviceFixture($organization);
+
+    $graph = WorkflowGraph::fromArray([
+        'version' => 1,
+        'nodes' => [
+            [
+                'id' => 'query-1',
+                'type' => 'query',
+                'data' => [
+                    'config' => [
+                        'mode' => 'sql',
+                        'window' => [
+                            'size' => 30,
+                            'unit' => 'minute',
+                        ],
+                        'sources' => [
+                            [
+                                'alias' => 'source_1',
+                                'device_id' => $fixture['device']->id,
+                                'topic_id' => $fixture['publishTopic']->id,
+                                'parameter_definition_id' => $fixture['voltageParameter']->id,
+                            ],
+                        ],
+                        'sql' => 'SELECT AVG(source_1.value) AS value FROM source_1',
+                    ],
+                ],
+            ],
+        ],
+        'edges' => [],
+    ]);
+
+    expect(fn () => app(WorkflowNodeConfigValidator::class)->validate($workflow, $graph))
+        ->not->toThrow(RuntimeException::class);
+});
+
+it('fails when query node sql is not select-only', function (): void {
+    $organization = createOrganizationRecord();
+    $workflow = createWorkflowRecord($organization);
+    $fixture = createWorkflowDeviceFixture($organization);
+
+    $graph = WorkflowGraph::fromArray([
+        'version' => 1,
+        'nodes' => [
+            [
+                'id' => 'query-1',
+                'type' => 'query',
+                'data' => [
+                    'config' => [
+                        'mode' => 'sql',
+                        'window' => [
+                            'size' => 30,
+                            'unit' => 'minute',
+                        ],
+                        'sources' => [
+                            [
+                                'alias' => 'source_1',
+                                'device_id' => $fixture['device']->id,
+                                'topic_id' => $fixture['publishTopic']->id,
+                                'parameter_definition_id' => $fixture['voltageParameter']->id,
+                            ],
+                        ],
+                        'sql' => 'SELECT update AS value FROM source_1',
+                    ],
+                ],
+            ],
+        ],
+        'edges' => [],
+    ]);
+
+    expect(fn () => app(WorkflowNodeConfigValidator::class)->validate($workflow, $graph))
+        ->toThrow(RuntimeException::class, 'contains forbidden keyword [update]');
+});
+
+it('fails when query node source is outside workflow organization scope', function (): void {
+    $organization = createOrganizationRecord();
+    $workflow = createWorkflowRecord($organization);
+    $otherFixture = createWorkflowDeviceFixture(createOrganizationRecord());
+
+    $graph = WorkflowGraph::fromArray([
+        'version' => 1,
+        'nodes' => [
+            [
+                'id' => 'query-1',
+                'type' => 'query',
+                'data' => [
+                    'config' => [
+                        'mode' => 'sql',
+                        'window' => [
+                            'size' => 15,
+                            'unit' => 'minute',
+                        ],
+                        'sources' => [
+                            [
+                                'alias' => 'source_1',
+                                'device_id' => $otherFixture['device']->id,
+                                'topic_id' => $otherFixture['publishTopic']->id,
+                                'parameter_definition_id' => $otherFixture['voltageParameter']->id,
+                            ],
+                        ],
+                        'sql' => 'SELECT AVG(source_1.value) AS value FROM source_1',
+                    ],
+                ],
+            ],
+        ],
+        'edges' => [],
+    ]);
+
+    expect(fn () => app(WorkflowNodeConfigValidator::class)->validate($workflow, $graph))
+        ->toThrow(RuntimeException::class, 'references invalid device');
+});
+
+it('allows guided condition to use query value as left operand', function (): void {
+    $workflow = createWorkflowRecord(createOrganizationRecord());
+
+    $graph = WorkflowGraph::fromArray([
+        'version' => 1,
+        'nodes' => [
+            [
+                'id' => 'condition-1',
+                'type' => 'condition',
+                'data' => [
+                    'config' => [
+                        'mode' => 'guided',
+                        'guided' => [
+                            'left' => 'query.value',
+                            'operator' => '>',
+                            'right' => 1,
+                        ],
+                        'json_logic' => [
+                            '>' => [
+                                ['var' => 'query.value'],
+                                1,
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ],
+        'edges' => [],
+    ]);
+
+    expect(fn () => app(WorkflowNodeConfigValidator::class)->validate($workflow, $graph))
+        ->not->toThrow(RuntimeException::class);
+});
+
+it('validates alert node configuration for email channel', function (): void {
+    $workflow = createWorkflowRecord(createOrganizationRecord());
+
+    $graph = WorkflowGraph::fromArray([
+        'version' => 1,
+        'nodes' => [
+            [
+                'id' => 'alert-1',
+                'type' => 'alert',
+                'data' => [
+                    'config' => [
+                        'channel' => 'email',
+                        'recipients' => ['alerts@example.com', 'ops@example.com'],
+                        'subject' => 'Threshold exceeded',
+                        'body' => 'Query value is {{ query.value }}',
+                        'cooldown' => [
+                            'value' => 30,
+                            'unit' => 'minute',
+                        ],
+                    ],
+                ],
+            ],
+        ],
+        'edges' => [],
+    ]);
+
+    expect(fn () => app(WorkflowNodeConfigValidator::class)->validate($workflow, $graph))
+        ->not->toThrow(RuntimeException::class);
+});
+
+it('fails when alert recipients are invalid email addresses', function (): void {
+    $workflow = createWorkflowRecord(createOrganizationRecord());
+
+    $graph = WorkflowGraph::fromArray([
+        'version' => 1,
+        'nodes' => [
+            [
+                'id' => 'alert-1',
+                'type' => 'alert',
+                'data' => [
+                    'config' => [
+                        'channel' => 'email',
+                        'recipients' => ['invalid-email'],
+                        'subject' => 'Threshold exceeded',
+                        'body' => 'Alert body',
+                        'cooldown' => [
+                            'value' => 30,
+                            'unit' => 'minute',
+                        ],
+                    ],
+                ],
+            ],
+        ],
+        'edges' => [],
+    ]);
+
+    expect(fn () => app(WorkflowNodeConfigValidator::class)->validate($workflow, $graph))
+        ->toThrow(RuntimeException::class, 'must be valid email addresses');
+});
+
+it('fails when alert cooldown configuration is invalid', function (): void {
+    $workflow = createWorkflowRecord(createOrganizationRecord());
+
+    $graph = WorkflowGraph::fromArray([
+        'version' => 1,
+        'nodes' => [
+            [
+                'id' => 'alert-1',
+                'type' => 'alert',
+                'data' => [
+                    'config' => [
+                        'channel' => 'email',
+                        'recipients' => ['alerts@example.com'],
+                        'subject' => 'Threshold exceeded',
+                        'body' => 'Alert body',
+                        'cooldown' => [
+                            'value' => 0,
+                            'unit' => 'minute',
+                        ],
+                    ],
+                ],
+            ],
+        ],
+        'edges' => [],
+    ]);
+
+    expect(fn () => app(WorkflowNodeConfigValidator::class)->validate($workflow, $graph))
+        ->toThrow(RuntimeException::class, 'cooldown must include positive value');
+});

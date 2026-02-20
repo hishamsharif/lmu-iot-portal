@@ -348,11 +348,116 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
+.automation-dag-code-editor {
+    min-height: 7.6rem;
+    line-height: 1.42;
+    tab-size: 2;
+    background:
+        linear-gradient(
+            to right,
+            color-mix(in srgb, var(--automation-dag-modal-bg) 92%, var(--automation-dag-accent) 8%),
+            color-mix(in srgb, var(--automation-dag-modal-bg) 97%, transparent)
+        );
+}
+
+.automation-dag-code-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.32rem;
+}
+
+.automation-dag-code-pill {
+    border: 1px solid var(--automation-dag-modal-border);
+    border-radius: 999px;
+    padding: 0.18rem 0.52rem;
+    background: color-mix(in srgb, var(--automation-dag-accent) 12%, transparent);
+    color: var(--automation-dag-text);
+    font-size: 0.68rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.automation-dag-code-pill:hover {
+    background: color-mix(in srgb, var(--automation-dag-accent) 24%, transparent);
+}
+
 .automation-dag-field select:focus,
 .automation-dag-field input:focus,
 .automation-dag-field textarea:focus {
     outline: 2px solid color-mix(in srgb, var(--automation-dag-accent) 48%, transparent);
     outline-offset: 1px;
+}
+
+.automation-dag-field-inline-group {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(9rem, 42%);
+    gap: 0.42rem;
+}
+
+.automation-dag-source-list {
+    display: grid;
+    gap: 0.66rem;
+}
+
+.automation-dag-source-row {
+    border: 1px solid var(--automation-dag-modal-border);
+    border-radius: 0.72rem;
+    padding: 0.62rem;
+    display: grid;
+    gap: 0.6rem;
+    background: color-mix(in srgb, var(--automation-dag-modal-bg) 95%, transparent);
+}
+
+.automation-dag-source-row-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.72rem;
+}
+
+.automation-dag-source-row-header strong {
+    color: var(--automation-dag-text);
+    font-size: 0.78rem;
+}
+
+.automation-dag-color-control {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 0.52rem;
+}
+
+.automation-dag-field input.automation-dag-color-input {
+    width: 2.45rem;
+    min-width: 2.45rem;
+    height: 2rem;
+    padding: 0.12rem;
+    border-radius: 0.52rem;
+    cursor: pointer;
+}
+
+.automation-dag-field input.automation-dag-color-input::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+.automation-dag-field input.automation-dag-color-input::-webkit-color-swatch {
+    border: none;
+    border-radius: 0.38rem;
+}
+
+.automation-dag-field input.automation-dag-color-input::-moz-color-swatch {
+    border: none;
+    border-radius: 0.38rem;
+}
+
+.automation-dag-color-value {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 0.78rem;
+    color: var(--automation-dag-text);
+    padding: 0.42rem 0.56rem;
+    border: 1px solid var(--automation-dag-modal-border);
+    border-radius: 0.55rem;
+    background: color-mix(in srgb, var(--automation-dag-modal-bg) 97%, transparent);
 }
 
 .automation-dag-info-panel {
@@ -432,7 +537,8 @@
 
     .automation-dag-node-palette,
     .automation-dag-grid-two,
-    .automation-dag-parameter-grid {
+    .automation-dag-parameter-grid,
+    .automation-dag-field-inline-group {
         grid-template-columns: 1fr;
     }
 

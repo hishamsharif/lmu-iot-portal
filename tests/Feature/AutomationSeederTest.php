@@ -74,3 +74,48 @@ it('seeds an active energy meter current range automation that controls rgb colo
         ->and($trigger?->device_id)->toBe($energyMeter?->id)
         ->and($trigger?->schema_version_topic_id)->toBe($energyTelemetryTopic?->id);
 });
+
+it('seeds an active energy consumption window query automation that triggers red blink command', function (): void {
+    $this->seed([
+        OrganizationSeeder::class,
+        DeviceSchemaSeeder::class,
+        DeviceControlSeeder::class,
+        AutomationSeeder::class,
+    ]);
+
+    $workflow = AutomationWorkflow::query()
+        ->where('slug', 'energy-meter-consumption-window-rgb-alert')
+        ->first();
+
+    expect($workflow)->not->toBeNull()
+        ->and($workflow?->status)->toBe(AutomationWorkflowStatus::Active)
+        ->and($workflow?->active_version_id)->not->toBeNull();
+
+    $activeVersion = $workflow?->activeVersion;
+    $graph = $activeVersion?->graph_json;
+
+    expect($activeVersion)->not->toBeNull()
+        ->and($graph)->toBeArray();
+
+    $nodes = collect($graph['nodes'] ?? []);
+    $queryNode = $nodes->first(fn (array $node): bool => ($node['type'] ?? null) === 'query');
+    $conditionNode = $nodes->first(fn (array $node): bool => ($node['type'] ?? null) === 'condition');
+    $commandNode = $nodes->first(fn (array $node): bool => ($node['type'] ?? null) === 'command');
+
+    expect($queryNode)->toBeArray()
+        ->and(data_get($queryNode, 'data.config.mode'))->toBe('sql')
+        ->and(data_get($queryNode, 'data.config.window.size'))->toBe(15)
+        ->and(data_get($queryNode, 'data.config.window.unit'))->toBe('minute')
+        ->and(data_get($queryNode, 'data.config.sql'))->toBe('SELECT COALESCE(MAX(source_1.value) - MIN(source_1.value), 0) AS value FROM source_1');
+
+    expect($conditionNode)->toBeArray()
+        ->and(data_get($conditionNode, 'data.config.guided.left'))->toBe('query.value')
+        ->and(data_get($conditionNode, 'data.config.guided.operator'))->toBe('>')
+        ->and(data_get($conditionNode, 'data.config.guided.right'))->toBe(15);
+
+    expect($commandNode)->toBeArray()
+        ->and(data_get($commandNode, 'data.config.payload.power'))->toBeTrue()
+        ->and(data_get($commandNode, 'data.config.payload.brightness'))->toBe(100)
+        ->and(data_get($commandNode, 'data.config.payload.color_hex'))->toBe('#FF0000')
+        ->and(data_get($commandNode, 'data.config.payload.effect'))->toBe('blink');
+});

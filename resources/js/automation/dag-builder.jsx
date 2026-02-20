@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
     addEdge,
@@ -19,9 +19,15 @@ const NODE_PALETTE = [
     { type: 'telemetry-trigger', label: 'Telemetry Trigger' },
     { type: 'schedule-trigger', label: 'Schedule Trigger' },
     { type: 'condition', label: 'Condition' },
+    { type: 'query', label: 'Query' },
     { type: 'delay', label: 'Delay' },
     { type: 'command', label: 'Command' },
     { type: 'alert', label: 'Alert' },
+];
+
+const CONDITION_LEFT_OPTIONS = [
+    { value: 'trigger.value', label: 'Trigger Value' },
+    { value: 'query.value', label: 'Query Value' },
 ];
 
 const CONDITION_OPERATOR_OPTIONS = [
@@ -34,6 +40,12 @@ const CONDITION_OPERATOR_OPTIONS = [
 ];
 
 const DEFAULT_VIEWPORT = { x: 0, y: 0, zoom: 1 };
+const WINDOW_UNITS = [
+    { value: 'minute', label: 'Minutes' },
+    { value: 'hour', label: 'Hours' },
+    { value: 'day', label: 'Days' },
+];
+const QUERY_ALIAS_REGEX = /^[a-z][a-z0-9_]{0,30}$/i;
 
 function isPlainObject(value) {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -82,6 +94,7 @@ function nodeColorForMiniMap(nodeType, isDark) {
         'telemetry-trigger': isDark ? '#fbbf24' : '#f59e0b',
         'schedule-trigger': isDark ? '#fbbf24' : '#f59e0b',
         condition: isDark ? '#60a5fa' : '#2563eb',
+        query: isDark ? '#22d3ee' : '#0891b2',
         delay: isDark ? '#a78bfa' : '#7c3aed',
         command: isDark ? '#34d399' : '#059669',
         alert: isDark ? '#f87171' : '#dc2626',
@@ -124,6 +137,58 @@ function buildGuidedJsonLogic(guided) {
     };
 }
 
+function normalizeConditionLeftOperand(value) {
+    return CONDITION_LEFT_OPTIONS.some((candidate) => candidate.value === value) ? value : 'trigger.value';
+}
+
+function normalizeWindowUnit(value) {
+    return WINDOW_UNITS.some((candidate) => candidate.value === value) ? value : 'minute';
+}
+
+function createDefaultQuerySource(index = 0, existingSource = null) {
+    const fallbackAlias = `source_${index + 1}`;
+    const alias = typeof existingSource?.alias === 'string' && existingSource.alias.trim() !== ''
+        ? existingSource.alias.trim()
+        : fallbackAlias;
+
+    return {
+        alias,
+        device_id: toPositiveInteger(existingSource?.device_id),
+        topic_id: toPositiveInteger(existingSource?.topic_id),
+        parameter_definition_id: toPositiveInteger(existingSource?.parameter_definition_id),
+    };
+}
+
+function resolveQuerySourcesDraft(sources) {
+    if (!Array.isArray(sources) || sources.length === 0) {
+        return [createDefaultQuerySource(0)];
+    }
+
+    return sources.map((source, index) => createDefaultQuerySource(index, isPlainObject(source) ? source : null));
+}
+
+function parseEmailRecipientInput(value) {
+    if (typeof value !== 'string') {
+        return [];
+    }
+
+    const unique = {};
+
+    value
+        .split(/[\n,;]+/)
+        .map((item) => item.trim())
+        .filter((item) => item !== '')
+        .forEach((item) => {
+            unique[item.toLowerCase()] = item;
+        });
+
+    return Object.values(unique);
+}
+
+function isValidEmail(value) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
 function createDefaultConfigDraft(nodeType, existingConfig) {
     if (nodeType === 'telemetry-trigger') {
         const source = isPlainObject(existingConfig?.source) ? existingConfig.source : {};
@@ -142,7 +207,7 @@ function createDefaultConfigDraft(nodeType, existingConfig) {
         const mode = existingConfig?.mode === 'json_logic' ? 'json_logic' : 'guided';
         const existingGuided = isPlainObject(existingConfig?.guided) ? existingConfig.guided : {};
         const guided = {
-            left: existingGuided.left === 'trigger.value' ? 'trigger.value' : 'trigger.value',
+            left: normalizeConditionLeftOperand(existingGuided.left),
             operator: CONDITION_OPERATOR_OPTIONS.some((candidate) => candidate.value === existingGuided.operator)
                 ? existingGuided.operator
                 : '>',
@@ -158,6 +223,45 @@ function createDefaultConfigDraft(nodeType, existingConfig) {
             guided,
             json_logic: existingJsonLogic,
             json_logic_text: safeJsonStringify(existingJsonLogic),
+        };
+    }
+
+    if (nodeType === 'query') {
+        const window = isPlainObject(existingConfig?.window) ? existingConfig.window : {};
+        const sources = resolveQuerySourcesDraft(existingConfig?.sources);
+        const sql = typeof existingConfig?.sql === 'string' && existingConfig.sql.trim() !== ''
+            ? existingConfig.sql
+            : 'SELECT AVG(source_1.value) AS value FROM source_1';
+
+        return {
+            mode: 'sql',
+            window: {
+                size: toPositiveInteger(window.size) ?? 15,
+                unit: normalizeWindowUnit(window.unit),
+            },
+            sources,
+            sql,
+        };
+    }
+
+    if (nodeType === 'alert') {
+        const recipients = Array.isArray(existingConfig?.recipients)
+            ? existingConfig.recipients.filter((item) => typeof item === 'string' && item.trim() !== '')
+            : [];
+        const cooldown = isPlainObject(existingConfig?.cooldown) ? existingConfig.cooldown : {};
+
+        return {
+            channel: 'email',
+            recipients,
+            recipients_text: recipients.join('\n'),
+            subject: typeof existingConfig?.subject === 'string' ? existingConfig.subject : 'Automation alert',
+            body: typeof existingConfig?.body === 'string'
+                ? existingConfig.body
+                : 'Threshold reached.\n\nRun: {{ run.id }}\nQuery value: {{ query.value }}',
+            cooldown: {
+                value: toPositiveInteger(cooldown.value) ?? 30,
+                unit: normalizeWindowUnit(cooldown.unit),
+            },
         };
     }
 
@@ -204,7 +308,7 @@ function normalizeConfigForSave(nodeType, draft) {
 
         if (mode === 'guided') {
             const guided = {
-                left: 'trigger.value',
+                left: normalizeConditionLeftOperand(draft?.guided?.left),
                 operator: CONDITION_OPERATOR_OPTIONS.some((candidate) => candidate.value === draft?.guided?.operator)
                     ? draft.guided.operator
                     : '>',
@@ -237,13 +341,75 @@ function normalizeConfigForSave(nodeType, draft) {
         return {
             mode: 'json_logic',
             guided: {
-                left: 'trigger.value',
+                left: normalizeConditionLeftOperand(draft?.guided?.left),
                 operator: CONDITION_OPERATOR_OPTIONS.some((candidate) => candidate.value === draft?.guided?.operator)
                     ? draft.guided.operator
                     : '>',
                 right: Number.isFinite(Number(draft?.guided?.right)) ? Number(draft.guided.right) : 240,
             },
             json_logic: parsedJsonLogic,
+        };
+    }
+
+    if (nodeType === 'query') {
+        const mode = draft?.mode === 'sql' ? 'sql' : 'sql';
+        const windowSize = toPositiveInteger(draft?.window?.size);
+        const windowUnit = normalizeWindowUnit(draft?.window?.unit);
+        const sourceDrafts = Array.isArray(draft?.sources) ? draft.sources : [];
+        const sql = typeof draft?.sql === 'string' ? draft.sql.trim() : '';
+
+        if (!windowSize) {
+            throw new Error('Query window size must be a positive number.');
+        }
+
+        if (sql === '') {
+            throw new Error('Query SQL is required.');
+        }
+
+        if (sourceDrafts.length === 0) {
+            throw new Error('Add at least one query source.');
+        }
+
+        const aliases = {};
+
+        const sources = sourceDrafts.map((sourceDraft, index) => {
+            const alias = typeof sourceDraft?.alias === 'string' ? sourceDraft.alias.trim() : '';
+            const deviceId = toPositiveInteger(sourceDraft?.device_id);
+            const topicId = toPositiveInteger(sourceDraft?.topic_id);
+            const parameterDefinitionId = toPositiveInteger(sourceDraft?.parameter_definition_id);
+
+            if (!QUERY_ALIAS_REGEX.test(alias)) {
+                throw new Error(`Source #${index + 1} alias is invalid. Use letters, numbers, and underscore.`);
+            }
+
+            const normalizedAlias = alias.toLowerCase();
+
+            if (Object.prototype.hasOwnProperty.call(aliases, normalizedAlias)) {
+                throw new Error(`Source alias "${alias}" is duplicated.`);
+            }
+
+            aliases[normalizedAlias] = true;
+
+            if (!deviceId || !topicId || !parameterDefinitionId) {
+                throw new Error(`Source #${index + 1} requires device, topic, and parameter.`);
+            }
+
+            return {
+                alias: normalizedAlias,
+                device_id: deviceId,
+                topic_id: topicId,
+                parameter_definition_id: parameterDefinitionId,
+            };
+        });
+
+        return {
+            mode,
+            window: {
+                size: windowSize,
+                unit: windowUnit,
+            },
+            sources,
+            sql,
         };
     }
 
@@ -267,6 +433,53 @@ function normalizeConfigForSave(nodeType, draft) {
             },
             payload,
             payload_mode: 'schema_form',
+        };
+    }
+
+    if (nodeType === 'alert') {
+        const channel = draft?.channel === 'email' ? 'email' : 'email';
+        const recipients = parseEmailRecipientInput(
+            typeof draft?.recipients_text === 'string'
+                ? draft.recipients_text
+                : Array.isArray(draft?.recipients)
+                    ? draft.recipients.join('\n')
+                    : '',
+        );
+        const subject = typeof draft?.subject === 'string' ? draft.subject.trim() : '';
+        const body = typeof draft?.body === 'string' ? draft.body.trim() : '';
+        const cooldownValue = toPositiveInteger(draft?.cooldown?.value);
+        const cooldownUnit = normalizeWindowUnit(draft?.cooldown?.unit);
+
+        if (recipients.length === 0) {
+            throw new Error('Alert recipients are required.');
+        }
+
+        const invalidRecipient = recipients.find((recipient) => !isValidEmail(recipient));
+        if (invalidRecipient) {
+            throw new Error(`Alert recipient "${invalidRecipient}" is not a valid email.`);
+        }
+
+        if (subject === '') {
+            throw new Error('Alert subject is required.');
+        }
+
+        if (body === '') {
+            throw new Error('Alert body is required.');
+        }
+
+        if (!cooldownValue) {
+            throw new Error('Alert cooldown value must be positive.');
+        }
+
+        return {
+            channel,
+            recipients,
+            subject,
+            body,
+            cooldown: {
+                value: cooldownValue,
+                unit: cooldownUnit,
+            },
         };
     }
 
@@ -305,11 +518,12 @@ function summarizeNodeConfig(nodeType, config) {
 
     if (nodeType === 'condition') {
         if (config.mode === 'guided' && isPlainObject(config.guided)) {
+            const left = normalizeConditionLeftOperand(config.guided.left);
             const operator = typeof config.guided.operator === 'string' ? config.guided.operator : '>';
             const right = Number(config.guided.right);
             const resolvedRight = Number.isFinite(right) ? right : '?';
 
-            return `trigger.value ${operator} ${resolvedRight}`;
+            return `${left} ${operator} ${resolvedRight}`;
         }
 
         if (isPlainObject(config.json_logic)) {
@@ -331,6 +545,33 @@ function summarizeNodeConfig(nodeType, config) {
         }
 
         return `Target #${deviceId} / Topic #${topicId} / ${payloadPreview}`;
+    }
+
+    if (nodeType === 'query') {
+        const window = isPlainObject(config.window) ? config.window : {};
+        const sources = Array.isArray(config.sources) ? config.sources : [];
+        const windowSize = toPositiveInteger(window.size);
+        const windowUnit = normalizeWindowUnit(window.unit);
+        const sql = typeof config.sql === 'string' ? config.sql : '';
+
+        if (!windowSize || sources.length === 0 || sql.trim() === '') {
+            return 'Not configured';
+        }
+
+        return `${sources.length} source(s), ${windowSize} ${windowUnit}(s)`;
+    }
+
+    if (nodeType === 'alert') {
+        const recipients = Array.isArray(config.recipients) ? config.recipients : [];
+        const cooldown = isPlainObject(config.cooldown) ? config.cooldown : {};
+        const cooldownValue = toPositiveInteger(cooldown.value) ?? 30;
+        const cooldownUnit = normalizeWindowUnit(cooldown.unit);
+
+        if (recipients.length === 0) {
+            return 'Not configured';
+        }
+
+        return `${recipients.length} recipient(s), cooldown ${cooldownValue} ${cooldownUnit}(s)`;
     }
 
     const keys = Object.keys(config);
@@ -483,6 +724,114 @@ function WorkflowNodeCard({ data, selected }) {
 const NODE_TYPES = {
     workflowNode: WorkflowNodeCard,
 };
+
+function CodeEditorField({
+    label,
+    value,
+    onChange,
+    rows = 10,
+    placeholder = '',
+    error = '',
+    readOnly = false,
+    tokens = [],
+    snippets = [],
+}) {
+    const textareaRef = useRef(null);
+    const resolvedValue = typeof value === 'string' ? value : '';
+
+    const insertText = useCallback((insertable) => {
+        if (readOnly || typeof insertable !== 'string' || insertable === '') {
+            return;
+        }
+
+        const textarea = textareaRef.current;
+        const start = typeof textarea?.selectionStart === 'number' ? textarea.selectionStart : resolvedValue.length;
+        const end = typeof textarea?.selectionEnd === 'number' ? textarea.selectionEnd : resolvedValue.length;
+        const nextValue = `${resolvedValue.slice(0, start)}${insertable}${resolvedValue.slice(end)}`;
+
+        onChange(nextValue);
+
+        window.requestAnimationFrame(() => {
+            if (!textareaRef.current) {
+                return;
+            }
+
+            const cursor = start + insertable.length;
+            textareaRef.current.focus();
+            textareaRef.current.setSelectionRange(cursor, cursor);
+        });
+    }, [onChange, readOnly, resolvedValue]);
+
+    return (
+        <label className="automation-dag-field">
+            <span>{label}</span>
+
+            {tokens.length > 0 || snippets.length > 0 ? (
+                <div className="automation-dag-code-toolbar">
+                    {snippets.map((snippet, index) => {
+                        const snippetLabel = typeof snippet?.label === 'string' ? snippet.label : `Snippet ${index + 1}`;
+                        const snippetValue = typeof snippet?.sql === 'string'
+                            ? snippet.sql
+                            : typeof snippet?.value === 'string'
+                                ? snippet.value
+                                : '';
+
+                        if (snippetValue === '') {
+                            return null;
+                        }
+
+                        return (
+                            <button
+                                key={`snippet-${snippetLabel}-${index}`}
+                                type="button"
+                                className="automation-dag-code-pill"
+                                onClick={() => insertText(snippetValue)}
+                            >
+                                {snippetLabel}
+                            </button>
+                        );
+                    })}
+
+                    {tokens.map((token, index) => {
+                        const tokenLabel = typeof token?.label === 'string' ? token.label : `Token ${index + 1}`;
+                        const tokenValue = typeof token?.token === 'string'
+                            ? token.token
+                            : typeof token?.value === 'string'
+                                ? token.value
+                                : '';
+
+                        if (tokenValue === '') {
+                            return null;
+                        }
+
+                        return (
+                            <button
+                                key={`token-${tokenLabel}-${index}`}
+                                type="button"
+                                className="automation-dag-code-pill"
+                                onClick={() => insertText(tokenValue)}
+                            >
+                                {tokenLabel}
+                            </button>
+                        );
+                    })}
+                </div>
+            ) : null}
+
+            <textarea
+                ref={textareaRef}
+                rows={rows}
+                className="automation-dag-code-editor"
+                value={resolvedValue}
+                placeholder={placeholder}
+                readOnly={readOnly}
+                onChange={(event) => onChange(event.target.value)}
+            />
+
+            {error !== '' ? <span className="automation-dag-field-error">{error}</span> : null}
+        </label>
+    );
+}
 
 function TelemetryTriggerConfigEditor({ draft, onDraftChange, livewireId }) {
     const source = isPlainObject(draft?.source) ? draft.source : {};
@@ -689,6 +1038,7 @@ function TelemetryTriggerConfigEditor({ draft, onDraftChange, livewireId }) {
 
 function ConditionConfigEditor({ draft, onDraftChange, livewireId }) {
     const [templates, setTemplates] = useState({
+        left_operands: CONDITION_LEFT_OPTIONS,
         operators: CONDITION_OPERATOR_OPTIONS,
         default_mode: 'guided',
         default_guided: {
@@ -715,6 +1065,9 @@ function ConditionConfigEditor({ draft, onDraftChange, livewireId }) {
                 setTemplates((currentTemplates) => ({
                     ...currentTemplates,
                     ...response,
+                    left_operands: Array.isArray(response.left_operands) && response.left_operands.length > 0
+                        ? response.left_operands
+                        : currentTemplates.left_operands,
                     operators: Array.isArray(response.operators) && response.operators.length > 0
                         ? response.operators
                         : currentTemplates.operators,
@@ -734,9 +1087,12 @@ function ConditionConfigEditor({ draft, onDraftChange, livewireId }) {
     }, [livewireId]);
 
     const mode = draft?.mode === 'json_logic' ? 'json_logic' : 'guided';
+    const leftOperands = Array.isArray(templates.left_operands) && templates.left_operands.length > 0
+        ? templates.left_operands
+        : CONDITION_LEFT_OPTIONS;
     const guided = isPlainObject(draft?.guided)
         ? {
-              left: 'trigger.value',
+              left: normalizeConditionLeftOperand(draft.guided.left),
               operator: CONDITION_OPERATOR_OPTIONS.some((candidate) => candidate.value === draft.guided.operator)
                   ? draft.guided.operator
                   : '>',
@@ -786,13 +1142,13 @@ function ConditionConfigEditor({ draft, onDraftChange, livewireId }) {
                             const currentGuided = isPlainObject(currentDraft?.guided)
                                 ? currentDraft.guided
                                 : {
-                                      left: 'trigger.value',
+                                      left: normalizeConditionLeftOperand(templates?.default_guided?.left),
                                       operator: '>',
                                       right: 240,
                                   };
 
                             const nextJsonLogic = buildGuidedJsonLogic({
-                                left: 'trigger.value',
+                                left: normalizeConditionLeftOperand(currentGuided.left),
                                 operator: CONDITION_OPERATOR_OPTIONS.some((candidate) => candidate.value === currentGuided.operator)
                                     ? currentGuided.operator
                                     : '>',
@@ -803,7 +1159,7 @@ function ConditionConfigEditor({ draft, onDraftChange, livewireId }) {
                                 ...currentDraft,
                                 mode: 'guided',
                                 guided: {
-                                    left: 'trigger.value',
+                                    left: normalizeConditionLeftOperand(currentGuided.left),
                                     operator: CONDITION_OPERATOR_OPTIONS.some((candidate) => candidate.value === currentGuided.operator)
                                         ? currentGuided.operator
                                         : '>',
@@ -844,7 +1200,39 @@ function ConditionConfigEditor({ draft, onDraftChange, livewireId }) {
                 <div className="automation-dag-grid-two">
                     <label className="automation-dag-field">
                         <span>Left Operand</span>
-                        <input type="text" value="trigger.value" disabled />
+                        <select
+                            value={guided.left}
+                            onChange={(event) => {
+                                const nextLeft = normalizeConditionLeftOperand(event.target.value);
+
+                                onDraftChange((currentDraft) => {
+                                    const nextGuided = {
+                                        left: nextLeft,
+                                        operator: CONDITION_OPERATOR_OPTIONS.some((candidate) => candidate.value === currentDraft?.guided?.operator)
+                                            ? currentDraft.guided.operator
+                                            : '>',
+                                        right: Number.isFinite(Number(currentDraft?.guided?.right))
+                                            ? Number(currentDraft.guided.right)
+                                            : 240,
+                                    };
+                                    const nextJsonLogic = buildGuidedJsonLogic(nextGuided);
+
+                                    return {
+                                        ...currentDraft,
+                                        mode: 'guided',
+                                        guided: nextGuided,
+                                        json_logic: nextJsonLogic,
+                                        json_logic_text: safeJsonStringify(nextJsonLogic),
+                                    };
+                                });
+                            }}
+                        >
+                            {leftOperands.map((operand) => (
+                                <option key={String(operand.value)} value={String(operand.value)}>
+                                    {String(operand.label ?? operand.value)}
+                                </option>
+                            ))}
+                        </select>
                     </label>
 
                     <label className="automation-dag-field">
@@ -856,7 +1244,7 @@ function ConditionConfigEditor({ draft, onDraftChange, livewireId }) {
 
                                 onDraftChange((currentDraft) => {
                                     const nextGuided = {
-                                        left: 'trigger.value',
+                                        left: normalizeConditionLeftOperand(currentDraft?.guided?.left),
                                         operator: CONDITION_OPERATOR_OPTIONS.some((candidate) => candidate.value === nextOperator)
                                             ? nextOperator
                                             : '>',
@@ -893,7 +1281,7 @@ function ConditionConfigEditor({ draft, onDraftChange, livewireId }) {
                                 onDraftChange((currentDraft) => {
                                     const nextThreshold = Number(event.target.value);
                                     const nextGuided = {
-                                        left: 'trigger.value',
+                                        left: normalizeConditionLeftOperand(currentDraft?.guided?.left),
                                         operator: CONDITION_OPERATOR_OPTIONS.some((candidate) => candidate.value === currentDraft?.guided?.operator)
                                             ? currentDraft.guided.operator
                                             : '>',
@@ -914,24 +1302,598 @@ function ConditionConfigEditor({ draft, onDraftChange, livewireId }) {
                     </label>
                 </div>
             ) : (
+                <CodeEditorField
+                    label="JSON Logic"
+                    value={jsonLogicText}
+                    rows={11}
+                    error={jsonLogicParseError}
+                    onChange={(nextJsonText) => {
+                        onDraftChange((currentDraft) => ({
+                            ...currentDraft,
+                            mode: 'json_logic',
+                            json_logic_text: nextJsonText,
+                        }));
+                    }}
+                />
+            )}
+        </div>
+    );
+}
+
+function QueryConfigEditor({ draft, onDraftChange, livewireId }) {
+    const windowConfig = isPlainObject(draft?.window) ? draft.window : {};
+    const sources = useMemo(() => resolveQuerySourcesDraft(draft?.sources), [draft?.sources]);
+    const sql = typeof draft?.sql === 'string'
+        ? draft.sql
+        : 'SELECT AVG(source_1.value) AS value FROM source_1';
+
+    const [templates, setTemplates] = useState({
+        default_window: {
+            size: 15,
+            unit: 'minute',
+        },
+        window_units: WINDOW_UNITS,
+        runtime_tokens: [],
+        sql_snippets: [
+            { label: 'Average over source', sql: 'SELECT AVG(source_1.value) AS value FROM source_1' },
+        ],
+    });
+    const [sourceOptions, setSourceOptions] = useState({});
+    const [isLoadingSourceOptions, setIsLoadingSourceOptions] = useState(false);
+
+    useEffect(() => {
+        let ignore = false;
+
+        const loadTemplates = async () => {
+            try {
+                const response = await callLivewireMethod(livewireId, 'getQueryNodeTemplates');
+
+                if (ignore || !isPlainObject(response)) {
+                    return;
+                }
+
+                setTemplates((currentTemplates) => ({
+                    ...currentTemplates,
+                    ...response,
+                    window_units: Array.isArray(response.window_units) && response.window_units.length > 0
+                        ? response.window_units
+                        : currentTemplates.window_units,
+                    runtime_tokens: Array.isArray(response.runtime_tokens) ? response.runtime_tokens : currentTemplates.runtime_tokens,
+                    sql_snippets: Array.isArray(response.sql_snippets) && response.sql_snippets.length > 0
+                        ? response.sql_snippets
+                        : currentTemplates.sql_snippets,
+                }));
+            } catch (error) {
+                if (!ignore) {
+                    console.error('Unable to load query node templates.', error);
+                }
+            }
+        };
+
+        loadTemplates();
+
+        return () => {
+            ignore = true;
+        };
+    }, [livewireId]);
+
+    useEffect(() => {
+        let ignore = false;
+
+        const loadSourceOptions = async () => {
+            setIsLoadingSourceOptions(true);
+
+            try {
+                const responses = await Promise.all(
+                    sources.map(async (source) => {
+                        try {
+                            const response = await callLivewireMethod(livewireId, 'getQueryNodeOptions', {
+                                device_id: toPositiveInteger(source?.device_id),
+                                topic_id: toPositiveInteger(source?.topic_id),
+                            });
+
+                            return isPlainObject(response) ? response : {};
+                        } catch {
+                            return {};
+                        }
+                    }),
+                );
+
+                if (ignore) {
+                    return;
+                }
+
+                const nextSourceOptions = {};
+
+                responses.forEach((response, index) => {
+                    nextSourceOptions[index] = {
+                        devices: Array.isArray(response.devices) ? response.devices : [],
+                        topics: Array.isArray(response.topics) ? response.topics : [],
+                        parameters: Array.isArray(response.parameters) ? response.parameters : [],
+                    };
+                });
+
+                setSourceOptions(nextSourceOptions);
+            } finally {
+                if (!ignore) {
+                    setIsLoadingSourceOptions(false);
+                }
+            }
+        };
+
+        loadSourceOptions();
+
+        return () => {
+            ignore = true;
+        };
+    }, [livewireId, sources]);
+
+    const updateQueryDraft = useCallback((updater) => {
+        onDraftChange((currentDraft) => {
+            const currentWindow = isPlainObject(currentDraft?.window) ? currentDraft.window : {};
+            const currentSources = resolveQuerySourcesDraft(currentDraft?.sources);
+            const nextBase = {
+                mode: 'sql',
+                window: {
+                    size: toPositiveInteger(currentWindow.size) ?? 15,
+                    unit: normalizeWindowUnit(currentWindow.unit),
+                },
+                sources: currentSources,
+                sql: typeof currentDraft?.sql === 'string'
+                    ? currentDraft.sql
+                    : 'SELECT AVG(source_1.value) AS value FROM source_1',
+            };
+
+            const nextValues = updater(nextBase);
+
+            return {
+                ...currentDraft,
+                ...nextBase,
+                ...nextValues,
+            };
+        });
+    }, [onDraftChange]);
+
+    const sourceTokens = useMemo(() => {
+        const tokens = [];
+        const seenTokens = {};
+
+        sources.forEach((source) => {
+            const alias = typeof source?.alias === 'string' ? source.alias.trim().toLowerCase() : '';
+
+            if (!QUERY_ALIAS_REGEX.test(alias)) {
+                return;
+            }
+
+            [
+                { label: `${alias}`, token: alias },
+                { label: `${alias}.value`, token: `${alias}.value` },
+                { label: `${alias}.raw_value`, token: `${alias}.raw_value` },
+                { label: `${alias}.recorded_at`, token: `${alias}.recorded_at` },
+            ].forEach((token) => {
+                if (seenTokens[token.token]) {
+                    return;
+                }
+
+                seenTokens[token.token] = true;
+                tokens.push(token);
+            });
+        });
+
+        return tokens;
+    }, [sources]);
+
+    const mergedSqlSnippets = useMemo(() => {
+        const snippetList = Array.isArray(templates.sql_snippets) ? templates.sql_snippets : [];
+
+        return snippetList.map((snippet) => ({
+            label: typeof snippet?.label === 'string' ? snippet.label : 'SQL Snippet',
+            sql: typeof snippet?.sql === 'string' ? snippet.sql : '',
+        }));
+    }, [templates.sql_snippets]);
+
+    const windowUnits = Array.isArray(templates.window_units) && templates.window_units.length > 0
+        ? templates.window_units
+        : WINDOW_UNITS;
+
+    return (
+        <div className="automation-dag-modal-grid">
+            <div className="automation-dag-grid-two">
                 <label className="automation-dag-field">
-                    <span>JSON Logic</span>
-                    <textarea
-                        value={jsonLogicText}
+                    <span>Window Size</span>
+                    <input
+                        type="number"
+                        min="1"
+                        value={String(toPositiveInteger(windowConfig.size) ?? 15)}
                         onChange={(event) => {
-                            onDraftChange((currentDraft) => ({
-                                ...currentDraft,
-                                mode: 'json_logic',
-                                json_logic_text: event.target.value,
+                            const nextSize = toPositiveInteger(event.target.value) ?? 1;
+
+                            updateQueryDraft((current) => ({
+                                ...current,
+                                window: {
+                                    ...current.window,
+                                    size: nextSize,
+                                },
                             }));
                         }}
-                        rows={11}
                     />
-                    {jsonLogicParseError !== '' ? (
-                        <span className="automation-dag-field-error">{jsonLogicParseError}</span>
-                    ) : null}
                 </label>
-            )}
+
+                <label className="automation-dag-field">
+                    <span>Window Unit</span>
+                    <select
+                        value={normalizeWindowUnit(windowConfig.unit)}
+                        onChange={(event) => {
+                            const nextUnit = normalizeWindowUnit(event.target.value);
+
+                            updateQueryDraft((current) => ({
+                                ...current,
+                                window: {
+                                    ...current.window,
+                                    unit: nextUnit,
+                                },
+                            }));
+                        }}
+                    >
+                        {windowUnits.map((unit) => (
+                            <option key={String(unit.value)} value={String(unit.value)}>
+                                {String(unit.label ?? unit.value)}
+                            </option>
+                        ))}
+                    </select>
+                </label>
+            </div>
+
+            <div className="automation-dag-source-list">
+                {sources.map((source, index) => {
+                    const options = isPlainObject(sourceOptions[index]) ? sourceOptions[index] : { devices: [], topics: [], parameters: [] };
+                    const selectedDeviceId = toPositiveInteger(source?.device_id);
+                    const selectedTopicId = toPositiveInteger(source?.topic_id);
+                    const selectedParameterDefinitionId = toPositiveInteger(source?.parameter_definition_id);
+                    const aliasError = typeof source?.alias === 'string' && source.alias.trim() !== '' && !QUERY_ALIAS_REGEX.test(source.alias.trim())
+                        ? 'Use letters, numbers, and underscore only.'
+                        : '';
+
+                    return (
+                        <div key={`query-source-${index}`} className="automation-dag-source-row">
+                            <div className="automation-dag-source-row-header">
+                                <strong>Source {index + 1}</strong>
+
+                                <button
+                                    type="button"
+                                    className="automation-dag-action automation-dag-action-secondary"
+                                    onClick={() => {
+                                        updateQueryDraft((current) => {
+                                            const nextSources = current.sources.filter((_, sourceIndex) => sourceIndex !== index);
+
+                                            return {
+                                                ...current,
+                                                sources: nextSources.length > 0 ? nextSources : [createDefaultQuerySource(0)],
+                                            };
+                                        });
+                                    }}
+                                    disabled={sources.length === 1}
+                                >
+                                    Remove
+                                </button>
+                            </div>
+
+                            <div className="automation-dag-grid-two">
+                                <label className="automation-dag-field">
+                                    <span>Alias</span>
+                                    <input
+                                        type="text"
+                                        value={typeof source?.alias === 'string' ? source.alias : ''}
+                                        onChange={(event) => {
+                                            const nextAlias = event.target.value;
+
+                                            updateQueryDraft((current) => ({
+                                                ...current,
+                                                sources: current.sources.map((currentSource, sourceIndex) => (
+                                                    sourceIndex === index
+                                                        ? {
+                                                              ...currentSource,
+                                                              alias: nextAlias,
+                                                          }
+                                                        : currentSource
+                                                )),
+                                            }));
+                                        }}
+                                    />
+                                    {aliasError !== '' ? <span className="automation-dag-field-error">{aliasError}</span> : null}
+                                </label>
+
+                                <label className="automation-dag-field">
+                                    <span>Device</span>
+                                    <select
+                                        value={selectedDeviceId ?? ''}
+                                        onChange={(event) => {
+                                            const nextDeviceId = toPositiveInteger(event.target.value);
+
+                                            updateQueryDraft((current) => ({
+                                                ...current,
+                                                sources: current.sources.map((currentSource, sourceIndex) => (
+                                                    sourceIndex === index
+                                                        ? {
+                                                              ...currentSource,
+                                                              device_id: nextDeviceId,
+                                                              topic_id: null,
+                                                              parameter_definition_id: null,
+                                                          }
+                                                        : currentSource
+                                                )),
+                                            }));
+                                        }}
+                                    >
+                                        <option value="">Select device</option>
+                                        {options.devices.map((device) => (
+                                            <option key={String(device.id)} value={String(device.id)}>
+                                                {String(device.label ?? `Device #${device.id}`)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+
+                                <label className="automation-dag-field">
+                                    <span>Topic</span>
+                                    <select
+                                        value={selectedTopicId ?? ''}
+                                        onChange={(event) => {
+                                            const nextTopicId = toPositiveInteger(event.target.value);
+
+                                            updateQueryDraft((current) => ({
+                                                ...current,
+                                                sources: current.sources.map((currentSource, sourceIndex) => (
+                                                    sourceIndex === index
+                                                        ? {
+                                                              ...currentSource,
+                                                              topic_id: nextTopicId,
+                                                              parameter_definition_id: null,
+                                                          }
+                                                        : currentSource
+                                                )),
+                                            }));
+                                        }}
+                                        disabled={!selectedDeviceId}
+                                    >
+                                        <option value="">Select publish topic</option>
+                                        {options.topics.map((topic) => (
+                                            <option key={String(topic.id)} value={String(topic.id)}>
+                                                {String(topic.label ?? `Topic #${topic.id}`)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+
+                                <label className="automation-dag-field">
+                                    <span>Parameter</span>
+                                    <select
+                                        value={selectedParameterDefinitionId ?? ''}
+                                        onChange={(event) => {
+                                            const nextParameterDefinitionId = toPositiveInteger(event.target.value);
+
+                                            updateQueryDraft((current) => ({
+                                                ...current,
+                                                sources: current.sources.map((currentSource, sourceIndex) => (
+                                                    sourceIndex === index
+                                                        ? {
+                                                              ...currentSource,
+                                                              parameter_definition_id: nextParameterDefinitionId,
+                                                          }
+                                                        : currentSource
+                                                )),
+                                            }));
+                                        }}
+                                        disabled={!selectedTopicId}
+                                    >
+                                        <option value="">Select parameter</option>
+                                        {options.parameters.map((parameter) => (
+                                            <option key={String(parameter.id)} value={String(parameter.id)}>
+                                                {String(parameter.label ?? parameter.key ?? `Parameter #${parameter.id}`)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            <button
+                type="button"
+                className="automation-dag-action automation-dag-action-secondary"
+                onClick={() => {
+                    updateQueryDraft((current) => ({
+                        ...current,
+                        sources: [...current.sources, createDefaultQuerySource(current.sources.length)],
+                    }));
+                }}
+            >
+                Add Source
+            </button>
+
+            <CodeEditorField
+                label="SQL Query"
+                value={sql}
+                rows={12}
+                placeholder="SELECT AVG(source_1.value) AS value FROM source_1"
+                snippets={mergedSqlSnippets}
+                tokens={sourceTokens}
+                onChange={(nextSql) => {
+                    updateQueryDraft((current) => ({
+                        ...current,
+                        sql: nextSql,
+                    }));
+                }}
+            />
+
+            <div className="automation-dag-info-panel">
+                <strong>Query Contract</strong>
+                <div>Your SQL must return one row and include a numeric <code>value</code> column.</div>
+                <div>Each source alias is exposed as a CTE table with <code>value</code>, <code>raw_value</code>, and <code>recorded_at</code>.</div>
+                {isLoadingSourceOptions ? <div className="automation-dag-info-caption">Refreshing source options...</div> : null}
+            </div>
+        </div>
+    );
+}
+
+function AlertConfigEditor({ draft, onDraftChange, livewireId }) {
+    const [runtimeTokens, setRuntimeTokens] = useState([
+        { label: 'Trigger Value', token: '{{ trigger.value }}' },
+        { label: 'Query Value', token: '{{ query.value }}' },
+        { label: 'Run ID', token: '{{ run.id }}' },
+        { label: 'Workflow ID', token: '{{ run.workflow_id }}' },
+    ]);
+
+    useEffect(() => {
+        let ignore = false;
+
+        const loadTemplates = async () => {
+            try {
+                const response = await callLivewireMethod(livewireId, 'getQueryNodeTemplates');
+
+                if (ignore || !isPlainObject(response)) {
+                    return;
+                }
+
+                if (Array.isArray(response.runtime_tokens) && response.runtime_tokens.length > 0) {
+                    setRuntimeTokens(response.runtime_tokens);
+                }
+            } catch (error) {
+                if (!ignore) {
+                    console.error('Unable to load alert template tokens.', error);
+                }
+            }
+        };
+
+        loadTemplates();
+
+        return () => {
+            ignore = true;
+        };
+    }, [livewireId]);
+
+    const recipientsText = typeof draft?.recipients_text === 'string'
+        ? draft.recipients_text
+        : Array.isArray(draft?.recipients)
+            ? draft.recipients.join('\n')
+            : '';
+    const subject = typeof draft?.subject === 'string' ? draft.subject : '';
+    const body = typeof draft?.body === 'string' ? draft.body : '';
+    const cooldown = isPlainObject(draft?.cooldown) ? draft.cooldown : {};
+    const cooldownValue = toPositiveInteger(cooldown.value) ?? 30;
+    const cooldownUnit = normalizeWindowUnit(cooldown.unit);
+    const recipientList = parseEmailRecipientInput(recipientsText);
+    const invalidRecipients = recipientList.filter((recipient) => !isValidEmail(recipient));
+
+    return (
+        <div className="automation-dag-modal-grid">
+            <div className="automation-dag-grid-two">
+                <label className="automation-dag-field">
+                    <span>Channel</span>
+                    <select value="email" disabled>
+                        <option value="email">Email</option>
+                    </select>
+                </label>
+
+                <label className="automation-dag-field">
+                    <span>Cooldown</span>
+                    <div className="automation-dag-field-inline-group">
+                        <input
+                            type="number"
+                            min="1"
+                            value={String(cooldownValue)}
+                            onChange={(event) => {
+                                const nextValue = toPositiveInteger(event.target.value) ?? 1;
+
+                                onDraftChange((currentDraft) => ({
+                                    ...currentDraft,
+                                    channel: 'email',
+                                    cooldown: {
+                                        value: nextValue,
+                                        unit: normalizeWindowUnit(currentDraft?.cooldown?.unit),
+                                    },
+                                }));
+                            }}
+                        />
+                        <select
+                            value={cooldownUnit}
+                            onChange={(event) => {
+                                const nextUnit = normalizeWindowUnit(event.target.value);
+
+                                onDraftChange((currentDraft) => ({
+                                    ...currentDraft,
+                                    channel: 'email',
+                                    cooldown: {
+                                        value: toPositiveInteger(currentDraft?.cooldown?.value) ?? 30,
+                                        unit: nextUnit,
+                                    },
+                                }));
+                            }}
+                        >
+                            {WINDOW_UNITS.map((unit) => (
+                                <option key={String(unit.value)} value={String(unit.value)}>
+                                    {String(unit.label ?? unit.value)}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                </label>
+            </div>
+
+            <label className="automation-dag-field">
+                <span>Recipients (one email per line)</span>
+                <textarea
+                    rows={4}
+                    value={recipientsText}
+                    onChange={(event) => {
+                        const nextText = event.target.value;
+                        const nextRecipients = parseEmailRecipientInput(nextText);
+
+                        onDraftChange((currentDraft) => ({
+                            ...currentDraft,
+                            channel: 'email',
+                            recipients_text: nextText,
+                            recipients: nextRecipients,
+                        }));
+                    }}
+                />
+                {invalidRecipients.length > 0 ? (
+                    <span className="automation-dag-field-error">
+                        Invalid email(s): {invalidRecipients.join(', ')}
+                    </span>
+                ) : null}
+            </label>
+
+            <label className="automation-dag-field">
+                <span>Subject</span>
+                <input
+                    type="text"
+                    value={subject}
+                    onChange={(event) => {
+                        onDraftChange((currentDraft) => ({
+                            ...currentDraft,
+                            channel: 'email',
+                            subject: event.target.value,
+                        }));
+                    }}
+                />
+            </label>
+
+            <CodeEditorField
+                label="Body"
+                value={body}
+                rows={10}
+                tokens={runtimeTokens}
+                onChange={(nextBody) => {
+                    onDraftChange((currentDraft) => ({
+                        ...currentDraft,
+                        channel: 'email',
+                        body: nextBody,
+                    }));
+                }}
+            />
         </div>
     );
 }
@@ -1271,16 +2233,22 @@ function CommandConfigEditor({ draft, onDraftChange, livewireId }) {
                     }
 
                     if (widget === 'color') {
+                        const resolvedColor = typeof currentPayloadValue === 'string' && /^#[0-9A-Fa-f]{6}$/.test(currentPayloadValue)
+                            ? currentPayloadValue.toUpperCase()
+                            : '#FF0000';
+
                         return (
                             <label key={parameterKey} className="automation-dag-field">
                                 <span>{parameterLabel}</span>
-                                <input
-                                    type="color"
-                                    value={typeof currentPayloadValue === 'string' && /^#[0-9A-Fa-f]{6}$/.test(currentPayloadValue)
-                                        ? currentPayloadValue
-                                        : '#ff0000'}
-                                    onChange={(event) => updatePayload(parameterKey, event.target.value)}
-                                />
+                                <div className="automation-dag-color-control">
+                                    <input
+                                        type="color"
+                                        className="automation-dag-color-input"
+                                        value={resolvedColor}
+                                        onChange={(event) => updatePayload(parameterKey, event.target.value.toUpperCase())}
+                                    />
+                                    <span className="automation-dag-color-value">{resolvedColor}</span>
+                                </div>
                             </label>
                         );
                     }
@@ -1292,40 +2260,37 @@ function CommandConfigEditor({ draft, onDraftChange, livewireId }) {
                         const jsonFieldError = jsonFieldErrors[parameterKey];
 
                         return (
-                            <label key={parameterKey} className="automation-dag-field">
-                                <span>{parameterLabel}</span>
-                                <textarea
-                                    rows={4}
-                                    value={jsonDraft}
-                                    onChange={(event) => {
-                                        const nextDraft = event.target.value;
+                            <CodeEditorField
+                                key={parameterKey}
+                                label={parameterLabel}
+                                value={jsonDraft}
+                                rows={4}
+                                error={typeof jsonFieldError === 'string' ? jsonFieldError : ''}
+                                onChange={(nextDraft) => {
+                                    setJsonFieldDrafts((currentDrafts) => ({
+                                        ...currentDrafts,
+                                        [parameterKey]: nextDraft,
+                                    }));
 
-                                        setJsonFieldDrafts((currentDrafts) => ({
-                                            ...currentDrafts,
-                                            [parameterKey]: nextDraft,
+                                    try {
+                                        const parsedJson = JSON.parse(nextDraft);
+
+                                        setJsonFieldErrors((currentErrors) => {
+                                            const nextErrors = { ...currentErrors };
+                                            delete nextErrors[parameterKey];
+
+                                            return nextErrors;
+                                        });
+
+                                        updatePayload(parameterKey, parsedJson);
+                                    } catch {
+                                        setJsonFieldErrors((currentErrors) => ({
+                                            ...currentErrors,
+                                            [parameterKey]: 'Invalid JSON value.',
                                         }));
-
-                                        try {
-                                            const parsedJson = JSON.parse(nextDraft);
-
-                                            setJsonFieldErrors((currentErrors) => {
-                                                const nextErrors = { ...currentErrors };
-                                                delete nextErrors[parameterKey];
-
-                                                return nextErrors;
-                                            });
-
-                                            updatePayload(parameterKey, parsedJson);
-                                        } catch {
-                                            setJsonFieldErrors((currentErrors) => ({
-                                                ...currentErrors,
-                                                [parameterKey]: 'Invalid JSON value.',
-                                            }));
-                                        }
-                                    }}
-                                />
-                                {jsonFieldError ? <span className="automation-dag-field-error">{jsonFieldError}</span> : null}
-                            </label>
+                                    }
+                                }}
+                            />
                         );
                     }
 
@@ -1342,10 +2307,13 @@ function CommandConfigEditor({ draft, onDraftChange, livewireId }) {
                 })}
             </div>
 
-            <label className="automation-dag-field">
-                <span>Payload Preview</span>
-                <textarea value={payloadPreview} readOnly rows={8} />
-            </label>
+            <CodeEditorField
+                label="Payload Preview"
+                value={payloadPreview}
+                rows={8}
+                readOnly
+                onChange={() => {}}
+            />
 
             {isLoadingOptions ? <div className="automation-dag-info-caption">Refreshing command options...</div> : null}
         </div>
@@ -1356,19 +2324,17 @@ function GenericNodeConfigEditor({ draft, onDraftChange }) {
     const jsonText = typeof draft?.generic_json_text === 'string' ? draft.generic_json_text : '{}';
 
     return (
-        <label className="automation-dag-field">
-            <span>Not implemented yet for this node type. You can store a JSON object now.</span>
-            <textarea
-                rows={12}
-                value={jsonText}
-                onChange={(event) => {
-                    onDraftChange((currentDraft) => ({
-                        ...currentDraft,
-                        generic_json_text: event.target.value,
-                    }));
-                }}
-            />
-        </label>
+        <CodeEditorField
+            label="Not implemented yet for this node type. You can store a JSON object now."
+            value={jsonText}
+            rows={12}
+            onChange={(nextValue) => {
+                onDraftChange((currentDraft) => ({
+                    ...currentDraft,
+                    generic_json_text: nextValue,
+                }));
+            }}
+        />
     );
 }
 
@@ -1450,11 +2416,19 @@ function NodeConfigModal({ node, livewireId, onCancel, onCommit }) {
                         <ConditionConfigEditor draft={draft} onDraftChange={setDraft} livewireId={livewireId} />
                     ) : null}
 
+                    {nodeType === 'query' ? (
+                        <QueryConfigEditor draft={draft} onDraftChange={setDraft} livewireId={livewireId} />
+                    ) : null}
+
                     {nodeType === 'command' ? (
                         <CommandConfigEditor draft={draft} onDraftChange={setDraft} livewireId={livewireId} />
                     ) : null}
 
-                    {nodeType !== 'telemetry-trigger' && nodeType !== 'condition' && nodeType !== 'command' ? (
+                    {nodeType === 'alert' ? (
+                        <AlertConfigEditor draft={draft} onDraftChange={setDraft} livewireId={livewireId} />
+                    ) : null}
+
+                    {nodeType !== 'telemetry-trigger' && nodeType !== 'condition' && nodeType !== 'query' && nodeType !== 'command' && nodeType !== 'alert' ? (
                         <GenericNodeConfigEditor draft={draft} onDraftChange={setDraft} />
                     ) : null}
 

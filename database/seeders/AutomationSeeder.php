@@ -22,6 +22,8 @@ class AutomationSeeder extends Seeder
 {
     private const WORKFLOW_SLUG = 'energy-meter-current-a1-color-automation';
 
+    private const QUERY_WORKFLOW_SLUG = 'energy-meter-consumption-window-rgb-alert';
+
     private const ENERGY_METER_EXTERNAL_ID = 'main-energy-meter-01';
 
     private const RGB_CONTROLLER_EXTERNAL_ID = 'rgb-led-01';
@@ -75,10 +77,18 @@ class AutomationSeeder extends Seeder
             ->where('key', 'telemetry')
             ->first();
 
-        $sourceParameter = $sourceTopic instanceof SchemaVersionTopic
+        $currentSourceParameter = $sourceTopic instanceof SchemaVersionTopic
             ? ParameterDefinition::query()
                 ->where('schema_version_topic_id', $sourceTopic->id)
                 ->where('key', 'A1')
+                ->where('is_active', true)
+                ->first()
+            : null;
+
+        $energySourceParameter = $sourceTopic instanceof SchemaVersionTopic
+            ? ParameterDefinition::query()
+                ->where('schema_version_topic_id', $sourceTopic->id)
+                ->where('key', 'total_energy_kwh')
                 ->where('is_active', true)
                 ->first()
             : null;
@@ -89,63 +99,48 @@ class AutomationSeeder extends Seeder
             ->where('key', 'lighting_control')
             ->first();
 
-        if (! $sourceTopic instanceof SchemaVersionTopic || ! $sourceParameter instanceof ParameterDefinition || ! $targetTopic instanceof SchemaVersionTopic) {
+        if (
+            ! $sourceTopic instanceof SchemaVersionTopic
+            || ! $currentSourceParameter instanceof ParameterDefinition
+            || ! $energySourceParameter instanceof ParameterDefinition
+            || ! $targetTopic instanceof SchemaVersionTopic
+        ) {
             $this->command?->warn('Required source/target topic configuration was not found. Run schema seeders first.');
 
             return;
         }
 
-        $workflow = AutomationWorkflow::query()->updateOrCreate(
-            [
-                'organization_id' => $organization->id,
-                'slug' => self::WORKFLOW_SLUG,
-            ],
-            [
-                'name' => 'Energy Meter Current A1 to RGB Color',
-                'status' => AutomationWorkflowStatus::Active->value,
-            ],
+        $this->upsertWorkflowWithGraph(
+            organization: $organization,
+            slug: self::WORKFLOW_SLUG,
+            name: 'Energy Meter Current A1 to RGB Color',
+            graph: $this->buildCurrentColorGraph(
+                sourceDeviceId: $sourceDevice->id,
+                sourceTopicId: $sourceTopic->id,
+                sourceParameterId: $currentSourceParameter->id,
+                targetDeviceId: $targetDevice->id,
+                targetTopicId: $targetTopic->id,
+            ),
         );
 
-        $graph = $this->buildGraph(
-            sourceDeviceId: $sourceDevice->id,
-            sourceTopicId: $sourceTopic->id,
-            sourceParameterId: $sourceParameter->id,
-            targetDeviceId: $targetDevice->id,
-            targetTopicId: $targetTopic->id,
-        );
-
-        $workflowGraph = WorkflowGraph::fromArray($graph);
-        $this->workflowGraphValidator->validate($workflowGraph);
-        $this->workflowNodeConfigValidator->validate($workflow, $workflowGraph);
-
-        $workflowVersion = AutomationWorkflowVersion::query()->updateOrCreate(
-            [
-                'automation_workflow_id' => $workflow->id,
-                'version' => 1,
-            ],
-            [
-                'graph_json' => $graph,
-                'graph_checksum' => hash('sha256', json_encode($graph, JSON_THROW_ON_ERROR)),
-                'published_at' => now(),
-            ],
-        );
-
-        $workflow->update([
-            'status' => AutomationWorkflowStatus::Active->value,
-            'active_version_id' => $workflowVersion->id,
-        ]);
-
-        $this->workflowTelemetryTriggerCompiler->compile(
-            workflow: $workflow,
-            workflowVersion: $workflowVersion,
-            graph: $workflowGraph,
+        $this->upsertWorkflowWithGraph(
+            organization: $organization,
+            slug: self::QUERY_WORKFLOW_SLUG,
+            name: 'Energy Meter 15 Minute Consumption to RGB Alert',
+            graph: $this->buildConsumptionWindowQueryGraph(
+                sourceDeviceId: $sourceDevice->id,
+                sourceTopicId: $sourceTopic->id,
+                sourceParameterId: $energySourceParameter->id,
+                targetDeviceId: $targetDevice->id,
+                targetTopicId: $targetTopic->id,
+            ),
         );
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function buildGraph(
+    private function buildCurrentColorGraph(
         int $sourceDeviceId,
         int $sourceTopicId,
         int $sourceParameterId,
@@ -302,6 +297,152 @@ class AutomationSeeder extends Seeder
             ],
             'viewport' => ['x' => 0, 'y' => 0, 'zoom' => 1],
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildConsumptionWindowQueryGraph(
+        int $sourceDeviceId,
+        int $sourceTopicId,
+        int $sourceParameterId,
+        int $targetDeviceId,
+        int $targetTopicId,
+    ): array {
+        return [
+            'version' => 1,
+            'nodes' => [
+                [
+                    'id' => 'trigger-total-energy',
+                    'type' => 'telemetry-trigger',
+                    'data' => [
+                        'config' => [
+                            'mode' => 'event',
+                            'source' => [
+                                'device_id' => $sourceDeviceId,
+                                'topic_id' => $sourceTopicId,
+                                'parameter_definition_id' => $sourceParameterId,
+                            ],
+                        ],
+                    ],
+                ],
+                [
+                    'id' => 'query-energy-consumption-15m',
+                    'type' => 'query',
+                    'data' => [
+                        'config' => [
+                            'mode' => 'sql',
+                            'window' => [
+                                'size' => 15,
+                                'unit' => 'minute',
+                            ],
+                            'sources' => [
+                                [
+                                    'alias' => 'source_1',
+                                    'device_id' => $sourceDeviceId,
+                                    'topic_id' => $sourceTopicId,
+                                    'parameter_definition_id' => $sourceParameterId,
+                                ],
+                            ],
+                            'sql' => 'SELECT COALESCE(MAX(source_1.value) - MIN(source_1.value), 0) AS value FROM source_1',
+                        ],
+                    ],
+                ],
+                [
+                    'id' => 'condition-consumption-over-15',
+                    'type' => 'condition',
+                    'data' => [
+                        'config' => [
+                            'mode' => 'guided',
+                            'guided' => [
+                                'left' => 'query.value',
+                                'operator' => '>',
+                                'right' => 15,
+                            ],
+                            'json_logic' => [
+                                '>' => [
+                                    ['var' => 'query.value'],
+                                    15,
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+                [
+                    'id' => 'command-red-blink',
+                    'type' => 'command',
+                    'data' => [
+                        'config' => [
+                            'target' => [
+                                'device_id' => $targetDeviceId,
+                                'topic_id' => $targetTopicId,
+                            ],
+                            'payload_mode' => 'schema_form',
+                            'payload' => [
+                                'power' => true,
+                                'brightness' => 100,
+                                'color_hex' => '#FF0000',
+                                'effect' => 'blink',
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            'edges' => [
+                ['id' => 'edge-trigger-query', 'source' => 'trigger-total-energy', 'target' => 'query-energy-consumption-15m'],
+                ['id' => 'edge-query-condition', 'source' => 'query-energy-consumption-15m', 'target' => 'condition-consumption-over-15'],
+                ['id' => 'edge-condition-command', 'source' => 'condition-consumption-over-15', 'target' => 'command-red-blink'],
+            ],
+            'viewport' => ['x' => 0, 'y' => 0, 'zoom' => 1],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $graph
+     */
+    private function upsertWorkflowWithGraph(
+        Organization $organization,
+        string $slug,
+        string $name,
+        array $graph,
+    ): void {
+        $workflow = AutomationWorkflow::query()->updateOrCreate(
+            [
+                'organization_id' => $organization->id,
+                'slug' => $slug,
+            ],
+            [
+                'name' => $name,
+                'status' => AutomationWorkflowStatus::Active->value,
+            ],
+        );
+
+        $workflowGraph = WorkflowGraph::fromArray($graph);
+        $this->workflowGraphValidator->validate($workflowGraph);
+        $this->workflowNodeConfigValidator->validate($workflow, $workflowGraph);
+
+        $workflowVersion = AutomationWorkflowVersion::query()->updateOrCreate(
+            [
+                'automation_workflow_id' => $workflow->id,
+                'version' => 1,
+            ],
+            [
+                'graph_json' => $graph,
+                'graph_checksum' => hash('sha256', json_encode($graph, JSON_THROW_ON_ERROR)),
+                'published_at' => now(),
+            ],
+        );
+
+        $workflow->update([
+            'status' => AutomationWorkflowStatus::Active->value,
+            'active_version_id' => $workflowVersion->id,
+        ]);
+
+        $this->workflowTelemetryTriggerCompiler->compile(
+            workflow: $workflow,
+            workflowVersion: $workflowVersion,
+            graph: $workflowGraph,
+        );
     }
 
     private function resolvePositiveInt(mixed $value): ?int

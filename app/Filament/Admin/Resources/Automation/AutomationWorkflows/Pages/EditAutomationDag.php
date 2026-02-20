@@ -112,6 +112,7 @@ class EditAutomationDag extends Page
     /**
      * @return array{
      *     operators: array<int, array{value: string, label: string}>,
+     *     left_operands: array<int, array{value: string, label: string}>,
      *     default_mode: string,
      *     default_json_logic: array<string, mixed>,
      *     default_guided: array<string, mixed>
@@ -120,6 +121,10 @@ class EditAutomationDag extends Page
     public function getConditionTemplates(): array
     {
         return [
+            'left_operands' => [
+                ['value' => 'trigger.value', 'label' => 'Trigger Value'],
+                ['value' => 'query.value', 'label' => 'Query Value'],
+            ],
             'operators' => [
                 ['value' => '>', 'label' => 'Greater than'],
                 ['value' => '>=', 'label' => 'Greater than or equal'],
@@ -139,6 +144,80 @@ class EditAutomationDag extends Page
                 'left' => 'trigger.value',
                 'operator' => '>',
                 'right' => 240,
+            ],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     * @return array{
+     *     devices: array<int, array<string, mixed>>,
+     *     topics: array<int, array<string, mixed>>,
+     *     parameters: array<int, array<string, mixed>>
+     * }
+     */
+    public function getQueryNodeOptions(array $context = []): array
+    {
+        $workflow = $this->resolveOrganizationWorkflow();
+        $organizationId = (int) $workflow->organization_id;
+
+        $sourceDevice = $this->resolveOrganizationDevice($organizationId, $context['device_id'] ?? null);
+        $sourceTopic = $this->resolveDeviceTopic($sourceDevice, $context['topic_id'] ?? null, TopicDirection::Publish);
+
+        return [
+            'devices' => $this->buildOrganizationDeviceOptions($organizationId),
+            'topics' => $sourceDevice instanceof Device
+                ? $this->buildDeviceTopicOptions($sourceDevice, TopicDirection::Publish)
+                : [],
+            'parameters' => $sourceTopic instanceof SchemaVersionTopic
+                ? $this->buildTopicParameterOptions($sourceTopic)
+                : [],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     default_window: array{size: int, unit: string},
+     *     window_units: array<int, array{value: string, label: string}>,
+     *     runtime_tokens: array<int, array{label: string, token: string}>,
+     *     sql_snippets: array<int, array{label: string, sql: string}>
+     * }
+     */
+    public function getQueryNodeTemplates(): array
+    {
+        return [
+            'default_window' => [
+                'size' => 15,
+                'unit' => 'minute',
+            ],
+            'window_units' => [
+                ['value' => 'minute', 'label' => 'Minutes'],
+                ['value' => 'hour', 'label' => 'Hours'],
+                ['value' => 'day', 'label' => 'Days'],
+            ],
+            'runtime_tokens' => [
+                ['label' => 'Trigger Value', 'token' => '{{ trigger.value }}'],
+                ['label' => 'Trigger Device ID', 'token' => '{{ trigger.device_id }}'],
+                ['label' => 'Query Value', 'token' => '{{ query.value }}'],
+                ['label' => 'Window Start', 'token' => '{{ query.window.start }}'],
+                ['label' => 'Window End', 'token' => '{{ query.window.end }}'],
+                ['label' => 'Run ID', 'token' => '{{ run.id }}'],
+                ['label' => 'Workflow ID', 'token' => '{{ run.workflow_id }}'],
+                ['label' => 'Workflow Version ID', 'token' => '{{ run.workflow_version_id }}'],
+            ],
+            'sql_snippets' => [
+                [
+                    'label' => 'Average over source',
+                    'sql' => 'SELECT AVG(source_1.value) AS value FROM source_1',
+                ],
+                [
+                    'label' => 'Max over source',
+                    'sql' => 'SELECT MAX(source_1.value) AS value FROM source_1',
+                ],
+                [
+                    'label' => 'Difference between two sources',
+                    'sql' => 'SELECT (AVG(source_1.value) - AVG(source_2.value)) AS value FROM source_1 CROSS JOIN source_2',
+                ],
             ],
         ];
     }

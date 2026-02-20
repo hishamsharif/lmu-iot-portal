@@ -189,6 +189,105 @@ function buildVoltageBlinkGraph(array $fixture): array
     ];
 }
 
+function buildQueryAlertGraph(array $fixture): array
+{
+    return [
+        'version' => 1,
+        'nodes' => [
+            [
+                'id' => 'trigger-1',
+                'type' => 'telemetry-trigger',
+                'data' => [
+                    'label' => 'Energy Trigger',
+                    'summary' => 'Telemetry source for energy',
+                    'config' => [
+                        'mode' => 'event',
+                        'source' => [
+                            'device_id' => $fixture['device']->id,
+                            'topic_id' => $fixture['publishTopic']->id,
+                            'parameter_definition_id' => $fixture['voltageParameter']->id,
+                        ],
+                    ],
+                ],
+                'position' => ['x' => 120, 'y' => 100],
+            ],
+            [
+                'id' => 'query-1',
+                'type' => 'query',
+                'data' => [
+                    'label' => 'Windowed Query',
+                    'summary' => '1 source(s), 15 minute(s)',
+                    'config' => [
+                        'mode' => 'sql',
+                        'window' => [
+                            'size' => 15,
+                            'unit' => 'minute',
+                        ],
+                        'sources' => [
+                            [
+                                'alias' => 'source_1',
+                                'device_id' => $fixture['device']->id,
+                                'topic_id' => $fixture['publishTopic']->id,
+                                'parameter_definition_id' => $fixture['voltageParameter']->id,
+                            ],
+                        ],
+                        'sql' => 'SELECT AVG(source_1.value) AS value FROM source_1',
+                    ],
+                ],
+                'position' => ['x' => 420, 'y' => 100],
+            ],
+            [
+                'id' => 'condition-1',
+                'type' => 'condition',
+                'data' => [
+                    'label' => 'Query > 1',
+                    'summary' => 'query.value > 1',
+                    'config' => [
+                        'mode' => 'guided',
+                        'guided' => [
+                            'left' => 'query.value',
+                            'operator' => '>',
+                            'right' => 1,
+                        ],
+                        'json_logic' => [
+                            '>' => [
+                                ['var' => 'query.value'],
+                                1,
+                            ],
+                        ],
+                    ],
+                ],
+                'position' => ['x' => 700, 'y' => 100],
+            ],
+            [
+                'id' => 'alert-1',
+                'type' => 'alert',
+                'data' => [
+                    'label' => 'Email Alert',
+                    'summary' => '2 recipient(s), cooldown 30 minute(s)',
+                    'config' => [
+                        'channel' => 'email',
+                        'recipients' => ['ops@example.com', 'alerts@example.com'],
+                        'subject' => 'Energy threshold exceeded: {{ query.value }}',
+                        'body' => 'Run {{ run.id }}',
+                        'cooldown' => [
+                            'value' => 30,
+                            'unit' => 'minute',
+                        ],
+                    ],
+                ],
+                'position' => ['x' => 980, 'y' => 100],
+            ],
+        ],
+        'edges' => [
+            ['id' => 'edge-1', 'source' => 'trigger-1', 'target' => 'query-1'],
+            ['id' => 'edge-2', 'source' => 'query-1', 'target' => 'condition-1'],
+            ['id' => 'edge-3', 'source' => 'condition-1', 'target' => 'alert-1'],
+        ],
+        'viewport' => ['x' => 0, 'y' => 0, 'zoom' => 1],
+    ];
+}
+
 beforeEach(function (): void {
     $this->admin = User::factory()->create(['is_super_admin' => true]);
     $this->actingAs($this->admin);
@@ -220,6 +319,24 @@ it('returns organization scoped telemetry and command options', function (): voi
 
     $component
         ->call('getTelemetryTriggerOptions', [
+            'device_id' => $fixture['device']->id,
+            'topic_id' => $fixture['publishTopic']->id,
+        ])
+        ->assertReturned(function (mixed $response) use ($fixture, $otherFixture): bool {
+            if (! is_array($response)) {
+                return false;
+            }
+
+            $deviceIds = collect($response['devices'] ?? [])->pluck('id')->map(fn (mixed $id): int => (int) $id)->all();
+            $topicIds = collect($response['topics'] ?? [])->pluck('id')->map(fn (mixed $id): int => (int) $id)->all();
+            $parameterIds = collect($response['parameters'] ?? [])->pluck('id')->map(fn (mixed $id): int => (int) $id)->all();
+
+            return in_array($fixture['device']->id, $deviceIds, true)
+                && ! in_array($otherFixture['device']->id, $deviceIds, true)
+                && in_array($fixture['publishTopic']->id, $topicIds, true)
+                && in_array($fixture['voltageParameter']->id, $parameterIds, true);
+        })
+        ->call('getQueryNodeOptions', [
             'device_id' => $fixture['device']->id,
             'topic_id' => $fixture['publishTopic']->id,
         ])
@@ -323,6 +440,31 @@ it('saves configured dag graph and compiles telemetry trigger rows', function ()
 
     expect($trigger)->not->toBeNull()
         ->and($trigger?->organization_id)->toBe($organization->id)
+        ->and($trigger?->device_id)->toBe($fixture['device']->id)
+        ->and($trigger?->schema_version_topic_id)->toBe($fixture['publishTopic']->id);
+});
+
+it('saves dag graph containing query and alert nodes', function (): void {
+    $organization = createDagOrganization();
+    $workflow = createDagWorkflow($organization, updatedBy: $this->admin->id);
+    $fixture = createDagEditorFixture($organization);
+    $graph = buildQueryAlertGraph($fixture);
+
+    livewire(EditAutomationDag::class, ['record' => $workflow->id])
+        ->call('saveGraph', $graph)
+        ->assertNotified('DAG saved');
+
+    $workflow->refresh();
+    $version = $workflow->activeVersion()->first();
+
+    expect($version)->not->toBeNull()
+        ->and($version?->graph_json)->toMatchArray($graph);
+
+    $trigger = AutomationTelemetryTrigger::query()
+        ->where('workflow_version_id', $version?->id)
+        ->first();
+
+    expect($trigger)->not->toBeNull()
         ->and($trigger?->device_id)->toBe($fixture['device']->id)
         ->and($trigger?->schema_version_topic_id)->toBe($fixture['publishTopic']->id);
 });

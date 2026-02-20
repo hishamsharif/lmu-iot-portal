@@ -18,7 +18,12 @@ use App\Domain\DeviceSchema\Models\ParameterDefinition;
 use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Telemetry\Models\DeviceTelemetryLog;
+use App\Notifications\Automation\AutomationWorkflowAlertNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 
 uses(RefreshDatabase::class);
 
@@ -218,6 +223,172 @@ function bindFakeMqttPublisherForAutomationExecution(): void
     app()->instance(MqttCommandPublisher::class, $fakePublisher);
 }
 
+function createQueryAlertExecutionFixture(): array
+{
+    $organization = Organization::factory()->create();
+
+    $sourceDeviceType = DeviceType::factory()->forOrganization($organization->id)->mqtt()->create();
+    $sourceSchema = DeviceSchema::factory()->forDeviceType($sourceDeviceType)->create();
+    $sourceSchemaVersion = DeviceSchemaVersion::factory()->active()->create([
+        'device_schema_id' => $sourceSchema->id,
+    ]);
+
+    $sourceTopic = SchemaVersionTopic::factory()->publish()->create([
+        'device_schema_version_id' => $sourceSchemaVersion->id,
+        'key' => 'telemetry',
+        'suffix' => 'telemetry',
+    ]);
+
+    $sourceParameter = ParameterDefinition::factory()->create([
+        'schema_version_topic_id' => $sourceTopic->id,
+        'key' => 'total_energy',
+        'json_path' => 'energy.total',
+        'type' => ParameterDataType::Decimal,
+        'required' => true,
+        'is_active' => true,
+    ]);
+
+    $sourceDevice = Device::factory()->create([
+        'organization_id' => $organization->id,
+        'device_type_id' => $sourceDeviceType->id,
+        'device_schema_version_id' => $sourceSchemaVersion->id,
+        'name' => 'Energy Meter',
+    ]);
+
+    $workflow = AutomationWorkflow::factory()->create([
+        'organization_id' => $organization->id,
+    ]);
+
+    $graph = [
+        'version' => 1,
+        'nodes' => [
+            [
+                'id' => 'trigger-1',
+                'type' => 'telemetry-trigger',
+                'data' => [
+                    'config' => [
+                        'mode' => 'event',
+                        'source' => [
+                            'device_id' => $sourceDevice->id,
+                            'topic_id' => $sourceTopic->id,
+                            'parameter_definition_id' => $sourceParameter->id,
+                        ],
+                    ],
+                ],
+            ],
+            [
+                'id' => 'query-1',
+                'type' => 'query',
+                'data' => [
+                    'config' => [
+                        'mode' => 'sql',
+                        'window' => [
+                            'size' => 15,
+                            'unit' => 'minute',
+                        ],
+                        'sources' => [
+                            [
+                                'alias' => 'source_1',
+                                'device_id' => $sourceDevice->id,
+                                'topic_id' => $sourceTopic->id,
+                                'parameter_definition_id' => $sourceParameter->id,
+                            ],
+                        ],
+                        'sql' => 'SELECT COALESCE(SUM(source_1.value), 0) AS value FROM source_1',
+                    ],
+                ],
+            ],
+            [
+                'id' => 'condition-1',
+                'type' => 'condition',
+                'data' => [
+                    'config' => [
+                        'mode' => 'guided',
+                        'guided' => [
+                            'left' => 'query.value',
+                            'operator' => '>',
+                            'right' => 1,
+                        ],
+                        'json_logic' => [
+                            '>' => [
+                                ['var' => 'query.value'],
+                                1,
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            [
+                'id' => 'alert-1',
+                'type' => 'alert',
+                'data' => [
+                    'config' => [
+                        'channel' => 'email',
+                        'recipients' => ['ops@example.com', 'alerts@example.com'],
+                        'subject' => 'Energy threshold exceeded: {{ query.value }} kWh',
+                        'body' => "Run {{ run.id }}\nDevice {{ trigger.device_id }}\nWindow {{ query.window.start }} - {{ query.window.end }}",
+                        'cooldown' => [
+                            'value' => 30,
+                            'unit' => 'minute',
+                        ],
+                    ],
+                ],
+            ],
+        ],
+        'edges' => [
+            ['id' => 'edge-1', 'source' => 'trigger-1', 'target' => 'query-1'],
+            ['id' => 'edge-2', 'source' => 'query-1', 'target' => 'condition-1'],
+            ['id' => 'edge-3', 'source' => 'condition-1', 'target' => 'alert-1'],
+        ],
+    ];
+
+    $version = AutomationWorkflowVersion::factory()->create([
+        'automation_workflow_id' => $workflow->id,
+        'version' => 1,
+        'graph_json' => $graph,
+    ]);
+
+    $workflow->update(['active_version_id' => $version->id]);
+
+    AutomationTelemetryTrigger::factory()->create([
+        'organization_id' => $organization->id,
+        'workflow_version_id' => $version->id,
+        'device_id' => $sourceDevice->id,
+        'device_type_id' => $sourceDevice->device_type_id,
+        'schema_version_topic_id' => $sourceTopic->id,
+    ]);
+
+    return [
+        'workflow' => $workflow,
+        'version' => $version,
+        'sourceDevice' => $sourceDevice,
+        'sourceTopic' => $sourceTopic,
+    ];
+}
+
+function createQueryAlertTelemetryLog(array $fixture, float $energyTotal, Carbon $recordedAt): DeviceTelemetryLog
+{
+    return DeviceTelemetryLog::factory()
+        ->forDevice($fixture['sourceDevice'])
+        ->forTopic($fixture['sourceTopic'])
+        ->create([
+            'transformed_values' => [
+                'energy' => ['total' => $energyTotal],
+                'total_energy' => $energyTotal,
+            ],
+            'raw_payload' => [
+                'energy' => ['total' => $energyTotal],
+            ],
+            'recorded_at' => $recordedAt,
+            'received_at' => $recordedAt,
+        ]);
+}
+
+function queryExecutionTestsRequirePostgres(): bool
+{
+    return DB::getDriverName() === 'pgsql';
+}
+
 it('executes condition and command nodes when telemetry condition passes', function (): void {
     bindFakeMqttPublisherForAutomationExecution();
 
@@ -274,4 +445,105 @@ it('does not dispatch command when condition evaluates to false', function (): v
         ->and($run?->steps()->where('node_id', 'condition-1')->where('status', 'completed')->exists())->toBeTrue()
         ->and($run?->steps()->where('node_id', 'command-1')->exists())->toBeFalse()
         ->and(DeviceCommandLog::query()->count())->toBe(0);
+});
+
+it('executes query condition and alert nodes when query value exceeds threshold', function (): void {
+    if (! queryExecutionTestsRequirePostgres()) {
+        $this->markTestSkipped('Query node execution tests require PostgreSQL.');
+    }
+
+    Notification::fake();
+    Cache::flush();
+
+    $fixture = createQueryAlertExecutionFixture();
+    $windowEnd = Carbon::parse('2026-02-20 10:00:00');
+
+    createQueryAlertTelemetryLog($fixture, 0.42, $windowEnd->copy()->subMinutes(6));
+    $triggerLog = createQueryAlertTelemetryLog($fixture, 0.74, $windowEnd->copy()->subMinute());
+    createQueryAlertTelemetryLog($fixture, 2.5, $windowEnd->copy()->subMinutes(45));
+
+    (new StartAutomationRunFromTelemetry(
+        workflowVersionId: $fixture['version']->id,
+        telemetryLogId: $triggerLog->id,
+    ))->handle();
+
+    $run = $fixture['workflow']->runs()->latest('id')->first();
+
+    expect($run)->not->toBeNull()
+        ->and($run?->status->value)->toBe('completed')
+        ->and($run?->steps()->where('node_id', 'query-1')->where('status', 'completed')->exists())->toBeTrue()
+        ->and($run?->steps()->where('node_id', 'condition-1')->where('status', 'completed')->exists())->toBeTrue()
+        ->and($run?->steps()->where('node_id', 'alert-1')->where('status', 'completed')->exists())->toBeTrue();
+
+    Notification::assertSentOnDemand(AutomationWorkflowAlertNotification::class);
+
+    expect(Notification::sentOnDemand(AutomationWorkflowAlertNotification::class))->toHaveCount(1);
+});
+
+it('skips repeated alerts within cooldown window while recording skip reason', function (): void {
+    if (! queryExecutionTestsRequirePostgres()) {
+        $this->markTestSkipped('Query node execution tests require PostgreSQL.');
+    }
+
+    Notification::fake();
+    Cache::flush();
+
+    $fixture = createQueryAlertExecutionFixture();
+    $baseTime = Carbon::parse('2026-02-20 11:00:00');
+
+    $firstTriggerLog = createQueryAlertTelemetryLog($fixture, 1.2, $baseTime->copy()->subMinute());
+
+    (new StartAutomationRunFromTelemetry(
+        workflowVersionId: $fixture['version']->id,
+        telemetryLogId: $firstTriggerLog->id,
+    ))->handle();
+
+    $secondTriggerLog = createQueryAlertTelemetryLog($fixture, 1.1, $baseTime->copy()->addMinutes(2));
+
+    (new StartAutomationRunFromTelemetry(
+        workflowVersionId: $fixture['version']->id,
+        telemetryLogId: $secondTriggerLog->id,
+    ))->handle();
+
+    expect(Notification::sentOnDemand(AutomationWorkflowAlertNotification::class))->toHaveCount(1);
+
+    $secondRun = $fixture['workflow']->runs()->latest('id')->first();
+
+    expect($secondRun)->not->toBeNull()
+        ->and($secondRun?->status->value)->toBe('completed')
+        ->and($secondRun?->steps()->where('node_id', 'alert-1')->where('status', 'skipped')->exists())->toBeTrue();
+
+    $alertStep = $secondRun?->steps()->where('node_id', 'alert-1')->latest('id')->first();
+
+    expect($alertStep?->output_snapshot)->toBeArray()
+        ->and($alertStep?->output_snapshot)->toHaveKey('reason', 'alert_cooldown_active');
+});
+
+it('does not send alert when query value stays below threshold', function (): void {
+    if (! queryExecutionTestsRequirePostgres()) {
+        $this->markTestSkipped('Query node execution tests require PostgreSQL.');
+    }
+
+    Notification::fake();
+    Cache::flush();
+
+    $fixture = createQueryAlertExecutionFixture();
+    $windowEnd = Carbon::parse('2026-02-20 12:00:00');
+
+    $triggerLog = createQueryAlertTelemetryLog($fixture, 0.35, $windowEnd->copy()->subMinute());
+
+    (new StartAutomationRunFromTelemetry(
+        workflowVersionId: $fixture['version']->id,
+        telemetryLogId: $triggerLog->id,
+    ))->handle();
+
+    $run = $fixture['workflow']->runs()->latest('id')->first();
+
+    expect($run)->not->toBeNull()
+        ->and($run?->status->value)->toBe('completed')
+        ->and($run?->steps()->where('node_id', 'query-1')->where('status', 'completed')->exists())->toBeTrue()
+        ->and($run?->steps()->where('node_id', 'condition-1')->where('status', 'completed')->exists())->toBeTrue()
+        ->and($run?->steps()->where('node_id', 'alert-1')->exists())->toBeFalse();
+
+    Notification::assertNothingSent();
 });
