@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Automation\Models;
 
 use App\Domain\Automation\Enums\AutomationWorkflowStatus;
+use App\Domain\Automation\Services\AutomationTriggerCacheInvalidator;
 use App\Domain\Shared\Models\Organization;
 use App\Domain\Shared\Models\User;
 use Database\Factories\Domain\Automation\Models\AutomationWorkflowFactory;
@@ -33,6 +34,17 @@ class AutomationWorkflow extends Model
     protected static function newFactory(): AutomationWorkflowFactory
     {
         return AutomationWorkflowFactory::new();
+    }
+
+    protected static function booted(): void
+    {
+        static::saved(static function (): void {
+            app(AutomationTriggerCacheInvalidator::class)->bumpVersion();
+        });
+
+        static::deleted(static function (): void {
+            app(AutomationTriggerCacheInvalidator::class)->bumpVersion();
+        });
     }
 
     /** @return BelongsTo<Organization, $this> */

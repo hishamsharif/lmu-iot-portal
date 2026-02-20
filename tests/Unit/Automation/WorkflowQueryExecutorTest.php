@@ -100,7 +100,7 @@ it('computes a numeric value from source ctes in the configured telemetry window
         ->forDevice($fixture['device'])
         ->forTopic($fixture['publishTopic'])
         ->create([
-            'transformed_values' => ['energy' => ['total' => 0.45]],
+            'transformed_values' => ['total_energy' => 0.45],
             'raw_payload' => ['energy' => ['total' => 0.45]],
             'recorded_at' => $windowEnd->copy()->subMinutes(6),
             'received_at' => $windowEnd->copy()->subMinutes(6),
@@ -110,7 +110,7 @@ it('computes a numeric value from source ctes in the configured telemetry window
         ->forDevice($fixture['device'])
         ->forTopic($fixture['publishTopic'])
         ->create([
-            'transformed_values' => ['energy' => ['total' => 0.67]],
+            'transformed_values' => ['total_energy' => 0.67],
             'raw_payload' => ['energy' => ['total' => 0.67]],
             'recorded_at' => $windowEnd->copy()->subMinutes(2),
             'received_at' => $windowEnd->copy()->subMinutes(2),
@@ -120,7 +120,7 @@ it('computes a numeric value from source ctes in the configured telemetry window
         ->forDevice($fixture['device'])
         ->forTopic($fixture['publishTopic'])
         ->create([
-            'transformed_values' => ['energy' => ['total' => 5.0]],
+            'transformed_values' => ['total_energy' => 5.0],
             'raw_payload' => ['energy' => ['total' => 5.0]],
             'recorded_at' => $windowEnd->copy()->subMinutes(40),
             'received_at' => $windowEnd->copy()->subMinutes(40),

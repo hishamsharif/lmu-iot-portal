@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Automation\Models;
 
+use App\Domain\Automation\Services\AutomationTriggerCacheInvalidator;
 use Database\Factories\Domain\Automation\Models\AutomationWorkflowVersionFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -31,6 +32,17 @@ class AutomationWorkflowVersion extends Model
     protected static function newFactory(): AutomationWorkflowVersionFactory
     {
         return AutomationWorkflowVersionFactory::new();
+    }
+
+    protected static function booted(): void
+    {
+        static::saved(static function (): void {
+            app(AutomationTriggerCacheInvalidator::class)->bumpVersion();
+        });
+
+        static::deleted(static function (): void {
+            app(AutomationTriggerCacheInvalidator::class)->bumpVersion();
+        });
     }
 
     /** @return BelongsTo<AutomationWorkflow, $this> */

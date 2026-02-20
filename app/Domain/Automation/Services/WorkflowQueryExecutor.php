@@ -384,6 +384,9 @@ SQL;
         foreach ($sourceDefinitions as $source) {
             $alias = $source['alias'];
             $pathLiteral = $this->resolvePostgresPathLiteral($source['parameter_path']);
+            $parameterKey = $this->resolvePostgresTextLiteral($source['parameter_key']);
+
+            $rawValueExpression = "COALESCE(transformed_values ->> '{$parameterKey}', transformed_values #>> '{$pathLiteral}', raw_payload #>> '{$pathLiteral}')";
 
             $deviceKey = "device_{$alias}";
             $topicKey = "topic_{$alias}";
@@ -402,10 +405,10 @@ SQL;
         device_id,
         schema_version_topic_id AS topic_id,
         {$source['parameter_definition_id']}::bigint AS parameter_definition_id,
-        (transformed_values #>> '{$pathLiteral}') AS raw_value,
+        {$rawValueExpression} AS raw_value,
         CASE
-            WHEN (transformed_values #>> '{$pathLiteral}') ~ '^[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?$'
-                THEN ((transformed_values #>> '{$pathLiteral}')::double precision)
+            WHEN {$rawValueExpression} ~ '^[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?$'
+                THEN ({$rawValueExpression}::double precision)
             ELSE NULL
         END AS value
     FROM device_telemetry_logs
@@ -440,6 +443,11 @@ SQL;
         }
 
         return '{'.implode(',', $segments).'}';
+    }
+
+    private function resolvePostgresTextLiteral(string $value): string
+    {
+        return str_replace("'", "''", $value);
     }
 
     private function resolvePositiveInt(mixed $value): ?int

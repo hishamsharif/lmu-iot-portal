@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Automation\Models;
 
+use App\Domain\Automation\Services\AutomationTriggerCacheInvalidator;
 use App\Domain\DeviceManagement\Models\Device;
 use App\Domain\DeviceManagement\Models\DeviceType;
 use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
@@ -33,6 +34,17 @@ class AutomationTelemetryTrigger extends Model
     protected static function newFactory(): AutomationTelemetryTriggerFactory
     {
         return AutomationTelemetryTriggerFactory::new();
+    }
+
+    protected static function booted(): void
+    {
+        static::saved(static function (): void {
+            app(AutomationTriggerCacheInvalidator::class)->bumpVersion();
+        });
+
+        static::deleted(static function (): void {
+            app(AutomationTriggerCacheInvalidator::class)->bumpVersion();
+        });
     }
 
     /** @return BelongsTo<Organization, $this> */
