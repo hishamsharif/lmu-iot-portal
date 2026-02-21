@@ -115,7 +115,9 @@ class EditAutomationDag extends Page
      *     left_operands: array<int, array{value: string, label: string}>,
      *     default_mode: string,
      *     default_json_logic: array<string, mixed>,
-     *     default_guided: array<string, mixed>
+     *     default_guided: array<string, mixed>,
+     *     json_logic_operators: array<int, array{value: string, label: string, arity: string, minArgs: int, maxArgs?: int}>,
+     *     variable_tokens: array<int, array{label: string, value: string}>
      * }
      */
     public function getConditionTemplates(): array
@@ -144,6 +146,39 @@ class EditAutomationDag extends Page
                 'left' => 'trigger.value',
                 'operator' => '>',
                 'right' => 240,
+            ],
+            'json_logic_operators' => [
+                ['value' => 'and', 'label' => 'All conditions (and)', 'arity' => 'variadic', 'minArgs' => 2],
+                ['value' => 'or', 'label' => 'Any condition (or)', 'arity' => 'variadic', 'minArgs' => 2],
+                ['value' => '!', 'label' => 'Not (!)', 'arity' => 'fixed', 'minArgs' => 1, 'maxArgs' => 1],
+                ['value' => '!!', 'label' => 'Truthy (!!)', 'arity' => 'fixed', 'minArgs' => 1, 'maxArgs' => 1],
+                ['value' => 'if', 'label' => 'If / Else', 'arity' => 'fixed', 'minArgs' => 3, 'maxArgs' => 3],
+                ['value' => '==', 'label' => 'Equal (==)', 'arity' => 'fixed', 'minArgs' => 2, 'maxArgs' => 2],
+                ['value' => '===', 'label' => 'Strict Equal (===)', 'arity' => 'fixed', 'minArgs' => 2, 'maxArgs' => 2],
+                ['value' => '!=', 'label' => 'Not Equal (!=)', 'arity' => 'fixed', 'minArgs' => 2, 'maxArgs' => 2],
+                ['value' => '!==', 'label' => 'Strict Not Equal (!==)', 'arity' => 'fixed', 'minArgs' => 2, 'maxArgs' => 2],
+                ['value' => '>', 'label' => 'Greater Than (>)', 'arity' => 'fixed', 'minArgs' => 2, 'maxArgs' => 2],
+                ['value' => '>=', 'label' => 'Greater Than or Equal (>=)', 'arity' => 'fixed', 'minArgs' => 2, 'maxArgs' => 2],
+                ['value' => '<', 'label' => 'Less Than (<)', 'arity' => 'fixed', 'minArgs' => 2, 'maxArgs' => 2],
+                ['value' => '<=', 'label' => 'Less Than or Equal (<=)', 'arity' => 'fixed', 'minArgs' => 2, 'maxArgs' => 2],
+                ['value' => '+', 'label' => 'Add (+)', 'arity' => 'variadic', 'minArgs' => 2],
+                ['value' => '-', 'label' => 'Subtract (-)', 'arity' => 'variadic', 'minArgs' => 2],
+                ['value' => '*', 'label' => 'Multiply (*)', 'arity' => 'variadic', 'minArgs' => 2],
+                ['value' => '/', 'label' => 'Divide (/)', 'arity' => 'variadic', 'minArgs' => 2],
+                ['value' => 'min', 'label' => 'Minimum', 'arity' => 'variadic', 'minArgs' => 2],
+                ['value' => 'max', 'label' => 'Maximum', 'arity' => 'variadic', 'minArgs' => 2],
+                ['value' => 'missing', 'label' => 'Missing Fields', 'arity' => 'custom', 'minArgs' => 1],
+                ['value' => 'missing_some', 'label' => 'Missing Some Fields', 'arity' => 'custom', 'minArgs' => 2],
+                ['value' => 'var', 'label' => 'Variable', 'arity' => 'custom', 'minArgs' => 1],
+            ],
+            'variable_tokens' => [
+                ['label' => 'Trigger Value', 'value' => 'trigger.value'],
+                ['label' => 'Trigger Device ID', 'value' => 'trigger.device_id'],
+                ['label' => 'Trigger Topic ID', 'value' => 'trigger.schema_version_topic_id'],
+                ['label' => 'Query Value', 'value' => 'query.value'],
+                ['label' => 'Run ID', 'value' => 'run.id'],
+                ['label' => 'Workflow ID', 'value' => 'run.workflow_id'],
+                ['label' => 'Trigger Payload', 'value' => 'payload'],
             ],
         ];
     }

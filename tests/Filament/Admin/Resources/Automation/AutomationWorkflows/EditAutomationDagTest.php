@@ -375,6 +375,37 @@ it('returns organization scoped telemetry and command options', function (): voi
         });
 });
 
+it('returns condition templates with operator metadata and variable tokens', function (): void {
+    $organization = createDagOrganization();
+    $workflow = createDagWorkflow($organization, updatedBy: $this->admin->id);
+
+    livewire(EditAutomationDag::class, ['record' => $workflow->id])
+        ->call('getConditionTemplates')
+        ->assertReturned(function (mixed $response): bool {
+            if (! is_array($response)) {
+                return false;
+            }
+
+            $operatorValues = collect($response['json_logic_operators'] ?? [])
+                ->pluck('value')
+                ->filter(fn (mixed $value): bool => is_string($value))
+                ->values()
+                ->all();
+
+            $variableTokens = collect($response['variable_tokens'] ?? [])
+                ->pluck('value')
+                ->filter(fn (mixed $value): bool => is_string($value))
+                ->values()
+                ->all();
+
+            return in_array('===', $operatorValues, true)
+                && in_array('!!', $operatorValues, true)
+                && in_array('missing_some', $operatorValues, true)
+                && in_array('trigger.value', $variableTokens, true)
+                && in_array('query.value', $variableTokens, true);
+        });
+});
+
 it('returns latest telemetry preview for selected source parameter', function (): void {
     $organization = createDagOrganization();
     $workflow = createDagWorkflow($organization, updatedBy: $this->admin->id);
@@ -467,6 +498,81 @@ it('saves dag graph containing query and alert nodes', function (): void {
     expect($trigger)->not->toBeNull()
         ->and($trigger?->device_id)->toBe($fixture['device']->id)
         ->and($trigger?->schema_version_topic_id)->toBe($fixture['publishTopic']->id);
+});
+
+it('saves nested json logic condition payloads from the dag editor', function (): void {
+    $organization = createDagOrganization();
+    $workflow = createDagWorkflow($organization, updatedBy: $this->admin->id);
+    $fixture = createDagEditorFixture($organization);
+    $graph = buildVoltageBlinkGraph($fixture);
+
+    $nestedJsonLogic = [
+        'and' => [
+            [
+                '>' => [
+                    ['var' => 'trigger.value'],
+                    200,
+                ],
+            ],
+            [
+                '!' => [
+                    [
+                        'missing_some' => [
+                            2,
+                            ['trigger.value', 'trigger.device_id', 'query.value'],
+                        ],
+                    ],
+                ],
+            ],
+            [
+                'if' => [
+                    [
+                        '===' => [
+                            ['var' => 'trigger.parameter_definition_id'],
+                            $fixture['voltageParameter']->id,
+                        ],
+                    ],
+                    true,
+                    false,
+                ],
+            ],
+        ],
+    ];
+
+    $graph['nodes'] = collect($graph['nodes'])
+        ->map(function (array $node) use ($nestedJsonLogic): array {
+            if (($node['id'] ?? null) !== 'condition-1') {
+                return $node;
+            }
+
+            $node['data']['config'] = [
+                'mode' => 'json_logic',
+                'guided' => [
+                    'left' => 'trigger.value',
+                    'operator' => '>',
+                    'right' => 240,
+                ],
+                'json_logic' => $nestedJsonLogic,
+            ];
+            $node['data']['summary'] = 'Nested JSON logic';
+
+            return $node;
+        })
+        ->values()
+        ->all();
+
+    livewire(EditAutomationDag::class, ['record' => $workflow->id])
+        ->call('saveGraph', $graph)
+        ->assertNotified('DAG saved');
+
+    $workflow->refresh();
+    $version = $workflow->activeVersion()->first();
+    $conditionNode = collect($version?->graph_json['nodes'] ?? [])
+        ->first(fn (array $node): bool => ($node['id'] ?? null) === 'condition-1');
+
+    expect($conditionNode)->toBeArray()
+        ->and(data_get($conditionNode, 'data.config.mode'))->toBe('json_logic')
+        ->and(data_get($conditionNode, 'data.config.json_logic'))->toBe($nestedJsonLogic);
 });
 
 it('does not save invalid cyclic graphs', function (): void {

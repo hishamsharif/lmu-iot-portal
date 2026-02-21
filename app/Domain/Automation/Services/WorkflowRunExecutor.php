@@ -15,7 +15,6 @@ use App\Domain\DeviceManagement\Models\Device;
 use App\Domain\DeviceSchema\Enums\TopicDirection;
 use App\Domain\DeviceSchema\Models\ParameterDefinition;
 use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
-use App\Domain\DeviceSchema\Services\JsonLogicEvaluator;
 use App\Domain\Telemetry\Models\DeviceTelemetryLog;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\CacheManager;
@@ -32,7 +31,7 @@ class WorkflowRunExecutor
     private const ALERT_DEFAULT_COOLDOWN_UNIT = 'minute';
 
     public function __construct(
-        private readonly JsonLogicEvaluator $jsonLogicEvaluator,
+        private readonly AutomationJsonLogicEvaluator $jsonLogicEvaluator,
         private readonly DeviceCommandDispatcher $deviceCommandDispatcher,
         private readonly WorkflowQueryExecutor $workflowQueryExecutor,
         private readonly WorkflowAlertDispatcher $workflowAlertDispatcher,

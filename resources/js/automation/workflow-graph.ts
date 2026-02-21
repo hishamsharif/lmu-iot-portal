@@ -13,9 +13,51 @@ export type ConditionGuidedConfig = {
     right: number;
 };
 
+export type JsonLogicOperator =
+    | 'var'
+    | 'if'
+    | 'and'
+    | 'or'
+    | '!'
+    | '!!'
+    | '=='
+    | '==='
+    | '!='
+    | '!=='
+    | '>'
+    | '>='
+    | '<'
+    | '<='
+    | '+'
+    | '-'
+    | '*'
+    | '/'
+    | 'min'
+    | 'max'
+    | 'missing'
+    | 'missing_some';
+
+export type JsonLogicValue =
+    | string
+    | number
+    | boolean
+    | null
+    | JsonLogicExpression
+    | JsonLogicValue[];
+
+export type JsonLogicExpression = {
+    [Operator in JsonLogicOperator]?: Operator extends 'var'
+        ? string | [string] | [string, JsonLogicValue]
+        : Operator extends 'missing'
+            ? string[]
+            : Operator extends 'missing_some'
+                ? [number, string[]]
+                : JsonLogicValue | JsonLogicValue[];
+};
+
 export type ConditionNodeConfig = {
     mode: 'guided' | 'json_logic';
-    json_logic: Record<string, unknown>;
+    json_logic: JsonLogicExpression;
     guided?: ConditionGuidedConfig;
 };
 

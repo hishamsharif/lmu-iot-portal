@@ -425,6 +425,77 @@ it('executes condition and command nodes when telemetry condition passes', funct
         ->and($commandLog?->status)->toBe(CommandStatus::Sent);
 });
 
+it('executes command when nested json logic condition operators evaluate to true', function (): void {
+    bindFakeMqttPublisherForAutomationExecution();
+
+    $fixture = createExecutionFixture(voltage: 120.5);
+
+    $graph = $fixture['version']->graph_json;
+
+    expect($graph)->toBeArray();
+
+    $graph['nodes'] = collect($graph['nodes'] ?? [])
+        ->map(function (array $node): array {
+            if (($node['id'] ?? null) !== 'condition-1') {
+                return $node;
+            }
+
+            $node['data']['config'] = [
+                'mode' => 'json_logic',
+                'guided' => [
+                    'left' => 'trigger.value',
+                    'operator' => '>',
+                    'right' => 20,
+                ],
+                'json_logic' => [
+                    'if' => [
+                        [
+                            'and' => [
+                                [
+                                    '>' => [
+                                        ['var' => 'trigger.value'],
+                                        100,
+                                    ],
+                                ],
+                                [
+                                    '===' => [
+                                        ['var' => 'payload.voltages.V1'],
+                                        120.5,
+                                    ],
+                                ],
+                                [
+                                    '!!' => [
+                                        ['var' => 'payload.voltages.V1'],
+                                    ],
+                                ],
+                            ],
+                        ],
+                        true,
+                        false,
+                    ],
+                ],
+            ];
+
+            return $node;
+        })
+        ->values()
+        ->all();
+
+    $fixture['version']->update(['graph_json' => $graph]);
+
+    (new StartAutomationRunFromTelemetry(
+        workflowVersionId: $fixture['version']->id,
+        telemetryLogId: $fixture['telemetryLog']->id,
+    ))->handle();
+
+    $run = $fixture['workflow']->runs()->latest('id')->first();
+
+    expect($run)->not->toBeNull()
+        ->and($run?->status->value)->toBe('completed')
+        ->and($run?->steps()->where('node_id', 'condition-1')->where('status', 'completed')->exists())->toBeTrue()
+        ->and($run?->steps()->where('node_id', 'command-1')->where('status', 'completed')->exists())->toBeTrue();
+});
+
 it('does not dispatch command when condition evaluates to false', function (): void {
     bindFakeMqttPublisherForAutomationExecution();
 

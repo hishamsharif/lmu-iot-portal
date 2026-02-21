@@ -39,6 +39,63 @@ it('returns matching workflow version ids for telemetry context', function (): v
     expect($matched->all())->toBe([$version->id]);
 });
 
+it('supports strict, truthy, and missing_some operators in trigger filters', function (): void {
+    $telemetryLog = DeviceTelemetryLog::factory()->create([
+        'transformed_values' => [
+            'status' => 'ok',
+            'value' => 18.5,
+        ],
+    ]);
+
+    $workflow = AutomationWorkflow::factory()->create([
+        'organization_id' => $telemetryLog->device->organization_id,
+        'status' => AutomationWorkflowStatus::Active,
+    ]);
+
+    $version = AutomationWorkflowVersion::factory()->create([
+        'automation_workflow_id' => $workflow->id,
+    ]);
+
+    $workflow->update(['active_version_id' => $version->id]);
+
+    AutomationTelemetryTrigger::factory()
+        ->forDevice($telemetryLog->device)
+        ->create([
+            'organization_id' => $telemetryLog->device->organization_id,
+            'workflow_version_id' => $version->id,
+            'schema_version_topic_id' => $telemetryLog->schema_version_topic_id,
+            'filter_expression' => [
+                'and' => [
+                    [
+                        '===' => [
+                            ['var' => 'status'],
+                            'ok',
+                        ],
+                    ],
+                    [
+                        '!!' => [
+                            ['var' => 'value'],
+                        ],
+                    ],
+                    [
+                        '!' => [
+                            [
+                                'missing_some' => [
+                                    2,
+                                    ['status', 'value', 'payload.missing'],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+    $matched = app(DatabaseTriggerMatcher::class)->matchTelemetryTriggers($telemetryLog->load('device'));
+
+    expect($matched->all())->toBe([$version->id]);
+});
+
 it('does not match paused workflows', function (): void {
     $telemetryLog = DeviceTelemetryLog::factory()->create();
 

@@ -7,7 +7,6 @@ namespace App\Domain\Automation\Services;
 use App\Domain\Automation\Contracts\TriggerMatcher;
 use App\Domain\Automation\Enums\AutomationWorkflowStatus;
 use App\Domain\Automation\Models\AutomationTelemetryTrigger;
-use App\Domain\DeviceSchema\Services\JsonLogicEvaluator;
 use App\Domain\Telemetry\Models\DeviceTelemetryLog;
 use Illuminate\Cache\CacheManager;
 use Illuminate\Log\LogManager;
@@ -18,7 +17,7 @@ use Psr\Log\LoggerInterface;
 class DatabaseTriggerMatcher implements TriggerMatcher
 {
     public function __construct(
-        private readonly JsonLogicEvaluator $jsonLogicEvaluator,
+        private readonly AutomationJsonLogicEvaluator $jsonLogicEvaluator,
         private readonly AutomationTriggerCacheInvalidator $automationTriggerCacheInvalidator,
         private readonly CacheManager $cacheManager,
         private readonly LogManager $logManager,

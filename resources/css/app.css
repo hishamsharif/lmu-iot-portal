@@ -512,6 +512,74 @@
     color: color-mix(in srgb, var(--automation-dag-accent) 86%, var(--automation-dag-text) 14%);
 }
 
+.automation-dag-json-rule {
+    border: 1px solid var(--automation-dag-modal-border);
+    border-radius: 0.75rem;
+    padding: 0.65rem;
+    background: color-mix(in srgb, var(--automation-dag-modal-bg) 95%, transparent);
+    display: grid;
+    gap: 0.65rem;
+}
+
+.automation-dag-json-rule.is-nested {
+    border-style: dashed;
+}
+
+.automation-dag-json-rule-header {
+    display: flex;
+    align-items: flex-end;
+}
+
+.automation-dag-json-rule-header .automation-dag-field {
+    margin: 0;
+}
+
+.automation-dag-json-body {
+    display: grid;
+    gap: 0.6rem;
+}
+
+.automation-dag-json-argument-row {
+    border: 1px solid var(--automation-dag-modal-border);
+    border-radius: 0.65rem;
+    padding: 0.55rem;
+    display: grid;
+    gap: 0.5rem;
+    background: color-mix(in srgb, var(--automation-dag-modal-bg) 97%, transparent);
+}
+
+.automation-dag-json-argument-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--automation-dag-muted);
+}
+
+.automation-dag-json-operand-actions {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+
+.automation-dag-json-rule-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.automation-dag-json-preview {
+    margin: 0;
+    padding: 0.65rem;
+    border-radius: 0.55rem;
+    border: 1px solid var(--automation-dag-modal-border);
+    background: color-mix(in srgb, var(--automation-dag-modal-bg) 97%, transparent);
+    color: var(--automation-dag-text);
+    font-size: 0.74rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
 .automation-dag-modal-error,
 .automation-dag-field-error {
     color: var(--automation-dag-danger);
@@ -538,7 +606,8 @@
     .automation-dag-node-palette,
     .automation-dag-grid-two,
     .automation-dag-parameter-grid,
-    .automation-dag-field-inline-group {
+    .automation-dag-field-inline-group,
+    .automation-dag-json-rule-row {
         grid-template-columns: 1fr;
     }
 
