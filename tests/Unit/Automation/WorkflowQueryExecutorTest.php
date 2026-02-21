@@ -157,3 +157,63 @@ it('computes a numeric value from source ctes in the configured telemetry window
         ->and($result['sources'])->toHaveCount(1)
         ->and($result['sources'][0]['alias'])->toBe('source_1');
 });
+
+it('accepts dollar-prefixed json paths for source parameters', function (): void {
+    if (DB::getDriverName() !== 'pgsql') {
+        $this->markTestSkipped('Query executor SQL execution test requires PostgreSQL.');
+    }
+
+    $fixture = createWorkflowQueryFixture();
+    $fixture['energyParameter']->update([
+        'json_path' => '$.energy.total',
+    ]);
+
+    $windowEnd = Carbon::parse('2026-02-20 10:00:00');
+
+    DeviceTelemetryLog::factory()
+        ->forDevice($fixture['device'])
+        ->forTopic($fixture['publishTopic'])
+        ->create([
+            'transformed_values' => [],
+            'raw_payload' => ['energy' => ['total' => 0.45]],
+            'recorded_at' => $windowEnd->copy()->subMinutes(6),
+            'received_at' => $windowEnd->copy()->subMinutes(6),
+        ]);
+
+    DeviceTelemetryLog::factory()
+        ->forDevice($fixture['device'])
+        ->forTopic($fixture['publishTopic'])
+        ->create([
+            'transformed_values' => [],
+            'raw_payload' => ['energy' => ['total' => 0.67]],
+            'recorded_at' => $windowEnd->copy()->subMinutes(2),
+            'received_at' => $windowEnd->copy()->subMinutes(2),
+        ]);
+
+    $result = app(WorkflowQueryExecutor::class)->execute(
+        run: $fixture['run'],
+        config: [
+            'mode' => 'sql',
+            'window' => [
+                'size' => 15,
+                'unit' => 'minute',
+            ],
+            'sources' => [
+                [
+                    'alias' => 'source_1',
+                    'device_id' => $fixture['device']->id,
+                    'topic_id' => $fixture['publishTopic']->id,
+                    'parameter_definition_id' => $fixture['energyParameter']->id,
+                ],
+            ],
+            'sql' => 'SELECT COALESCE(SUM(source_1.value), 0) AS value FROM source_1',
+        ],
+        executionContext: [
+            'trigger' => [
+                'recorded_at' => $windowEnd->toIso8601String(),
+            ],
+        ],
+    );
+
+    expect((float) $result['value'])->toEqualWithDelta(1.12, 0.00001);
+});

@@ -427,8 +427,18 @@ SQL;
 
     private function resolvePostgresPathLiteral(string $jsonPath): string
     {
+        $normalizedPath = trim($jsonPath);
+
+        if ($normalizedPath === '$') {
+            throw new RuntimeException('Query node source parameter json path is invalid.');
+        }
+
+        if (str_starts_with($normalizedPath, '$.')) {
+            $normalizedPath = substr($normalizedPath, 2);
+        }
+
         $segments = array_values(array_filter(
-            array_map(static fn (string $segment): string => trim($segment), explode('.', $jsonPath)),
+            array_map(static fn (string $segment): string => trim($segment), explode('.', $normalizedPath)),
             static fn (string $segment): bool => $segment !== '',
         ));
 
