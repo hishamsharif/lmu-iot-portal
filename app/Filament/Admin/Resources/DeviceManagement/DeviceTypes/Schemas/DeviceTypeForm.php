@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Admin\Resources\DeviceManagement\DeviceTypes\Schemas;
 
 use App\Domain\DeviceManagement\Enums\HttpAuthType;
+use App\Domain\DeviceManagement\Enums\MqttSecurityMode;
 use App\Domain\DeviceManagement\Enums\ProtocolType;
 use App\Domain\DeviceManagement\Models\DeviceType;
 use Filament\Forms\Components\Checkbox;
@@ -125,14 +126,28 @@ class DeviceTypeForm
                                     ->maxValue(65535)
                                     ->default(1883),
 
+                                Select::make('protocol_config.security_mode')
+                                    ->label('Security Mode')
+                                    ->options(MqttSecurityMode::class)
+                                    ->default(MqttSecurityMode::UsernamePassword->value)
+                                    ->required()
+                                    ->live(),
+
                                 TextInput::make('protocol_config.username')
                                     ->label('Username')
-                                    ->maxLength(255),
+                                    ->maxLength(255)
+                                    ->visible(fn (Get $get): bool => $get('protocol_config.security_mode') === MqttSecurityMode::UsernamePassword->value),
 
                                 TextInput::make('protocol_config.password')
                                     ->label('Password')
                                     ->password()
-                                    ->maxLength(255),
+                                    ->maxLength(255)
+                                    ->visible(fn (Get $get): bool => $get('protocol_config.security_mode') === MqttSecurityMode::UsernamePassword->value),
+
+                                Placeholder::make('security_mode_hint')
+                                    ->hiddenLabel()
+                                    ->content('X.509 mTLS mode uses per-device certificates and keys provisioned from the Device page.')
+                                    ->visible(fn (Get $get): bool => $get('protocol_config.security_mode') === MqttSecurityMode::X509Mtls->value),
 
                                 Checkbox::make('protocol_config.use_tls')
                                     ->label('Use TLS/SSL')

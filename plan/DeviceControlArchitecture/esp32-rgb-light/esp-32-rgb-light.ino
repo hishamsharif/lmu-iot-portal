@@ -8,6 +8,9 @@
  *   - {{CONTROL_TOPIC}}
  *   - {{STATE_TOPIC}}
  *   - {{PRESENCE_TOPIC}} (defaults to devices/{{DEVICE_ID}}/presence)
+ *   - {{MQTT_USE_TLS}}
+ *   - {{MQTT_SECURITY_MODE}}
+ *   - {{MQTT_FALLBACK_HOST}}
  *
  * Payload example:
  * {
@@ -20,6 +23,7 @@
  */
 
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 
@@ -29,16 +33,28 @@
 const char* WIFI_SSID     = "YOUR_WIFI_SSID";
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
 
-const char* MQTT_HOST     = "10.0.0.42";
-const uint16_t MQTT_PORT  = 1883;
-const char* MQTT_USER     = "";
-const char* MQTT_PASS     = "";
+const char* MQTT_HOST     = "{{MQTT_HOST}}";
+const char* MQTT_FALLBACK_HOST = "{{MQTT_FALLBACK_HOST}}";
+const uint16_t MQTT_PORT  = {{MQTT_PORT}};
+const bool MQTT_USE_TLS   = {{MQTT_USE_TLS}};
+const char* MQTT_SECURITY_MODE = "{{MQTT_SECURITY_MODE}}";
+const char* MQTT_USER     = "{{MQTT_USER}}";
+const char* MQTT_PASS     = "{{MQTT_PASS}}";
 const char* MQTT_CLIENT   = "{{MQTT_CLIENT_ID}}";
 
 const char* DEVICE_ID     = "{{DEVICE_ID}}";
 const char* TOPIC_CONTROL = "{{CONTROL_TOPIC}}";
 const char* TOPIC_STATE   = "{{STATE_TOPIC}}";
-const char* TOPIC_PRESENCE = "devices/{{DEVICE_ID}}/presence";
+const char* TOPIC_PRESENCE = "{{PRESENCE_TOPIC}}";
+const char* MQTT_CA_CERT = R"PEM(
+{{MQTT_TLS_CA_CERT_PEM}}
+)PEM";
+const char* MQTT_CLIENT_CERT = R"PEM(
+{{MQTT_TLS_CLIENT_CERT_PEM}}
+)PEM";
+const char* MQTT_CLIENT_KEY = R"PEM(
+{{MQTT_TLS_CLIENT_KEY_PEM}}
+)PEM";
 
 // NOTE (ESP32-S3 LEDC):
 // We'll use LEDC channels 0,1,2 and attach pins to those channels.
@@ -68,6 +84,8 @@ const uint8_t BRIGHTNESS_STEP = 20;
 
 const unsigned long BUTTON_DEBOUNCE_MS = 50;
 const unsigned long PUBLISH_DELAY_MS   = 1500;
+const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000;
+const unsigned long WIFI_RETRY_DELAY_MS = 3000;
 const unsigned long MQTT_CONNECTING_INDICATION_MS = 600;
 const unsigned long MQTT_SUBSCRIPTION_REFRESH_MS = 15000;
 const unsigned long MQTT_SUBSCRIPTION_RETRY_MS = 2000;
@@ -101,6 +119,7 @@ const uint8_t EFFECT_PRESET_COUNT = sizeof(EFFECT_PRESETS) / sizeof(EFFECT_PRESE
 /* ----------------------- Runtime State ----------------------- */
 
 WiFiClient wifiClient;
+WiFiClientSecure wifiSecureClient;
 PubSubClient mqttClient(wifiClient);
 
 bool powerState = true;
@@ -149,6 +168,7 @@ bool wifiIndicatorBlinkOn = false;
 unsigned long mqttIndicatorLastTick = 0;
 bool mqttIndicatorBlinkOn = false;
 uint8_t mqttBackoffPhase = 0;
+const char* mqttConnectHost = MQTT_HOST;
 
 /* ----------------------- Effect State ----------------------- */
 
@@ -278,6 +298,126 @@ void delayWithIndicators(unsigned long durationMs) {
     updateConnectivityIndicators();
     delay(20);
   }
+}
+
+bool mqttUsesMutualTls() {
+  return strcmp(MQTT_SECURITY_MODE, "x509_mtls") == 0;
+}
+
+bool mqttUsesSecureTransport() {
+  return MQTT_USE_TLS || mqttUsesMutualTls();
+}
+
+const char* wifiStatusToString(wl_status_t status) {
+  switch (status) {
+    case WL_IDLE_STATUS: return "IDLE";
+    case WL_NO_SSID_AVAIL: return "NO_SSID";
+    case WL_SCAN_COMPLETED: return "SCAN_COMPLETED";
+    case WL_CONNECTED: return "CONNECTED";
+    case WL_CONNECT_FAILED: return "CONNECT_FAILED";
+    case WL_CONNECTION_LOST: return "CONNECTION_LOST";
+    case WL_DISCONNECTED: return "DISCONNECTED";
+    default: return "UNKNOWN";
+  }
+}
+
+void logTargetNetworkScan() {
+  Serial.printf("[WiFi] Scanning for '%s'...\n", WIFI_SSID);
+  int networkCount = WiFi.scanNetworks(false, true);
+  if (networkCount < 0) {
+    Serial.printf("[WiFi] Scan failed: %d\n", networkCount);
+    return;
+  }
+
+  bool found = false;
+  for (int i = 0; i < networkCount; i++) {
+    String ssid = WiFi.SSID(i);
+    if (ssid != WIFI_SSID) {
+      continue;
+    }
+
+    found = true;
+    Serial.printf("[WiFi] Found target SSID: RSSI=%d dBm, channel=%d, auth=%d\n",
+                  WiFi.RSSI(i), WiFi.channel(i), WiFi.encryptionType(i));
+  }
+
+  if (!found) {
+    Serial.printf("[WiFi] SSID '%s' not visible in scan results.\n", WIFI_SSID);
+    int printCount = networkCount < 15 ? networkCount : 15;
+    Serial.printf("[WiFi] Nearby networks (%d shown):\n", printCount);
+    for (int i = 0; i < printCount; i++) {
+      String ssid = WiFi.SSID(i);
+      if (ssid.length() == 0) {
+        ssid = "<hidden>";
+      }
+      Serial.printf("  - %s | RSSI=%d dBm | ch=%d | auth=%d\n",
+                    ssid.c_str(), WiFi.RSSI(i), WiFi.channel(i), WiFi.encryptionType(i));
+    }
+  }
+
+  WiFi.scanDelete();
+}
+
+bool isZeroAddress(const IPAddress& address) {
+  return address[0] == 0 && address[1] == 0 && address[2] == 0 && address[3] == 0;
+}
+
+bool resolveMqttHost(const char* host, IPAddress& resolvedAddress) {
+  if (resolvedAddress.fromString(host)) {
+    return !isZeroAddress(resolvedAddress);
+  }
+
+  if (!WiFi.hostByName(host, resolvedAddress)) {
+    return false;
+  }
+
+  return !isZeroAddress(resolvedAddress);
+}
+
+void logBrokerResolution(const char* host, const char* label) {
+  IPAddress brokerAddress;
+
+  if (brokerAddress.fromString(host)) {
+    Serial.printf("[MQTT] %s host is already an IP: %s\n", label, host);
+    return;
+  }
+
+  if (WiFi.hostByName(host, brokerAddress)) {
+    if (brokerAddress.toString() == "0.0.0.0") {
+      Serial.printf("[MQTT] DNS %s (%s) -> 0.0.0.0 (invalid)\n", label, host);
+      return;
+    }
+
+    Serial.printf("[MQTT] DNS %s (%s) -> %s\n", label, host, brokerAddress.toString().c_str());
+    return;
+  }
+
+  Serial.printf("[MQTT] DNS resolution failed for %s host: %s\n", label, host);
+}
+
+const char* selectMqttConnectHost() {
+  IPAddress ignoredAddress;
+
+  if (resolveMqttHost(MQTT_HOST, ignoredAddress)) {
+    logBrokerResolution(MQTT_HOST, "primary");
+    return MQTT_HOST;
+  }
+
+  logBrokerResolution(MQTT_HOST, "primary");
+
+  bool hasFallbackHost = MQTT_FALLBACK_HOST[0] != '\0' && strcmp(MQTT_FALLBACK_HOST, MQTT_HOST) != 0;
+  if (!hasFallbackHost) {
+    return MQTT_HOST;
+  }
+
+  if (resolveMqttHost(MQTT_FALLBACK_HOST, ignoredAddress)) {
+    logBrokerResolution(MQTT_FALLBACK_HOST, "fallback");
+    Serial.printf("[MQTT] Falling back to alternate host: %s\n", MQTT_FALLBACK_HOST);
+    return MQTT_FALLBACK_HOST;
+  }
+
+  logBrokerResolution(MQTT_FALLBACK_HOST, "fallback");
+  return MQTT_HOST;
 }
 
 bool ensureControlTopicSubscription(bool forceAttempt = false) {
@@ -564,17 +704,37 @@ void onMqttMessage(char* topic, byte* payload, unsigned int length) {
   }
 }
 
-void connectWiFi() {
+bool connectWiFi() {
   setWifiIndicatorState(WifiIndicatorState::Connecting);
   setMqttIndicatorState(MqttIndicatorState::Off);
   controlTopicSubscribed = false;
 
-  Serial.printf("[WiFi] Connecting to %s", WIFI_SSID);
+  Serial.printf("[WiFi] Connecting to %s\n", WIFI_SSID);
   WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+  WiFi.persistent(false);
+  WiFi.disconnect(true, true);
+  delay(100);
+  logTargetNetworkScan();
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
   unsigned long lastDotTick = 0;
+  unsigned long connectStart = millis();
   while (WiFi.status() != WL_CONNECTED) {
+    wl_status_t status = WiFi.status();
+    if (status == WL_CONNECT_FAILED || status == WL_NO_SSID_AVAIL) {
+      Serial.printf("\n[WiFi] Failed: %s\n", wifiStatusToString(status));
+      setWifiIndicatorState(WifiIndicatorState::Off);
+      return false;
+    }
+
+    if (millis() - connectStart >= WIFI_CONNECT_TIMEOUT_MS) {
+      Serial.printf("\n[WiFi] Timeout after %lu ms, status=%s\n",
+                    WIFI_CONNECT_TIMEOUT_MS, wifiStatusToString(status));
+      setWifiIndicatorState(WifiIndicatorState::Off);
+      return false;
+    }
+
     unsigned long now = millis();
     if (now - lastDotTick >= 500) {
       lastDotTick = now;
@@ -588,10 +748,39 @@ void connectWiFi() {
   setWifiIndicatorState(WifiIndicatorState::Connected);
   setMqttIndicatorState(MqttIndicatorState::Off);
   Serial.printf("\n[WiFi] Connected - IP: %s\n", WiFi.localIP().toString().c_str());
+  return true;
+}
+
+void configureMqttTransport() {
+  if (mqttUsesSecureTransport()) {
+    mqttClient.setClient(wifiSecureClient);
+
+    if (MQTT_CA_CERT[0] != '\0') {
+      wifiSecureClient.setCACert(MQTT_CA_CERT);
+    } else {
+      wifiSecureClient.setInsecure();
+      Serial.println("[MQTT] Warning: no CA cert configured, TLS peer verification disabled");
+    }
+
+    if (mqttUsesMutualTls()) {
+      if (MQTT_CLIENT_CERT[0] == '\0' || MQTT_CLIENT_KEY[0] == '\0') {
+        Serial.println("[MQTT] Warning: X.509 mode selected but client cert/key is missing");
+      } else {
+        wifiSecureClient.setCertificate(MQTT_CLIENT_CERT);
+        wifiSecureClient.setPrivateKey(MQTT_CLIENT_KEY);
+      }
+    }
+
+    return;
+  }
+
+  mqttClient.setClient(wifiClient);
 }
 
 void connectMQTT() {
-  mqttClient.setServer(MQTT_HOST, MQTT_PORT);
+  configureMqttTransport();
+  mqttConnectHost = selectMqttConnectHost();
+  mqttClient.setServer(mqttConnectHost, MQTT_PORT);
   mqttClient.setBufferSize(512);
   mqttClient.setKeepAlive(MQTT_KEEPALIVE_SECONDS);
   mqttClient.setSocketTimeout(MQTT_SOCKET_TIMEOUT_SECONDS);
@@ -607,7 +796,12 @@ void connectMQTT() {
 
     setMqttIndicatorState(MqttIndicatorState::Connecting);
     delayWithIndicators(MQTT_CONNECTING_INDICATION_MS);
-    Serial.printf("[MQTT] Connecting to %s:%d as %s\n", MQTT_HOST, MQTT_PORT, MQTT_CLIENT);
+    Serial.printf("[MQTT] Connecting to %s:%d as %s (transport=%s, security=%s)\n",
+                  mqttConnectHost,
+                  MQTT_PORT,
+                  MQTT_CLIENT,
+                  mqttUsesSecureTransport() ? "tls" : "plain",
+                  MQTT_SECURITY_MODE);
 
     // Configure Last Will and Testament (LWT):
     // If the broker loses contact, it publishes "offline" to the presence topic.
@@ -747,14 +941,18 @@ void setup() {
   resetEffectTiming();
   updateEffect();
 
-  connectWiFi();
-  connectMQTT();
+  if (connectWiFi()) {
+    connectMQTT();
+  }
 }
 
 void loop() {
   if (WiFi.status() != WL_CONNECTED) {
     setMqttIndicatorState(MqttIndicatorState::Off);
-    connectWiFi();
+    if (!connectWiFi()) {
+      delayWithIndicators(WIFI_RETRY_DELAY_MS);
+      return;
+    }
   }
 
   if (!mqttClient.connected()) {

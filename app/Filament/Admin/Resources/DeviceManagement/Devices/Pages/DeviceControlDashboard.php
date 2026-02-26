@@ -12,6 +12,9 @@ use App\Domain\DeviceControl\Services\DeviceCommandDispatcher;
 use App\Domain\DeviceManagement\Models\Device;
 use App\Domain\DeviceManagement\Publishing\Nats\NatsDeviceStateStore;
 use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
+use App\Filament\Actions\DeviceManagement\ProvisionX509CertificateAction;
+use App\Filament\Actions\DeviceManagement\RevokeX509CertificateAction;
+use App\Filament\Actions\DeviceManagement\RotateX509CertificateAction;
 use App\Filament\Actions\DeviceManagement\ViewFirmwareAction;
 use App\Filament\Admin\Resources\DeviceManagement\Devices\DeviceResource;
 use Filament\Actions\Action;
@@ -108,6 +111,9 @@ class DeviceControlDashboard extends Page implements HasForms, HasTable
                 ->label('View Device')
                 ->url(fn (): string => DeviceResource::getUrl('view', ['record' => $this->getRecord()])),
             ViewFirmwareAction::make(),
+            ProvisionX509CertificateAction::make(),
+            RotateX509CertificateAction::make(),
+            RevokeX509CertificateAction::make(),
         ];
     }
 

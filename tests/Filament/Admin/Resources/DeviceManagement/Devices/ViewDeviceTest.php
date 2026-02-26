@@ -41,6 +41,7 @@ it('shows the firmware viewer action on the device view page', function (): void
 
     livewire(ViewDevice::class, ['record' => $device->id])
         ->assertActionExists('viewFirmware')
+        ->assertActionExists('provisionX509')
         ->assertActionHidden('controlDashboard');
 });
 

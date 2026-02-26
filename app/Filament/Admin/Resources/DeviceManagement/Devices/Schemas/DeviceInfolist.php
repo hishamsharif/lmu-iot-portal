@@ -83,6 +83,48 @@ class DeviceInfolist
                     ])
                     ->columns(2),
 
+                Section::make('X.509 Security')
+                    ->schema([
+                        IconEntry::make('has_active_certificate')
+                            ->label('Active Certificate')
+                            ->boolean()
+                            ->state(function (Device $record): bool {
+                                $record->loadMissing('activeCertificate');
+
+                                return $record->activeCertificate?->isActive() ?? false;
+                            }),
+
+                        TextEntry::make('activeCertificate.serial_number')
+                            ->label('Certificate Serial')
+                            ->state(function (Device $record): ?string {
+                                $record->loadMissing('activeCertificate');
+
+                                return $record->activeCertificate?->serial_number;
+                            })
+                            ->placeholder('Not provisioned'),
+
+                        TextEntry::make('activeCertificate.fingerprint_sha256')
+                            ->label('Fingerprint (SHA-256)')
+                            ->state(function (Device $record): ?string {
+                                $record->loadMissing('activeCertificate');
+
+                                return $record->activeCertificate?->fingerprint_sha256;
+                            })
+                            ->copyable()
+                            ->placeholder('—'),
+
+                        TextEntry::make('activeCertificate.not_after')
+                            ->label('Expires At')
+                            ->state(function (Device $record) {
+                                $record->loadMissing('activeCertificate');
+
+                                return $record->activeCertificate?->not_after;
+                            })
+                            ->dateTime()
+                            ->placeholder('—'),
+                    ])
+                    ->columns(2),
+
                 Section::make('Metadata')
                     ->schema([
                         KeyValueEntry::make('metadata')

@@ -49,7 +49,7 @@ class DeviceSchemaVersionForm
 
                 Section::make('Firmware Template')
                     ->collapsible()
-                    ->description('Store device firmware with placeholders like {{DEVICE_ID}}, {{CONTROL_TOPIC}}, and {{STATE_TOPIC}}.')
+                    ->description('Store device firmware with placeholders like {{DEVICE_ID}}, {{CONTROL_TOPIC}}, {{STATE_TOPIC}}, {{MQTT_HOST}}, {{MQTT_FALLBACK_HOST}}, {{MQTT_PORT}}, {{MQTT_USE_TLS}}, {{MQTT_SECURITY_MODE}}, and certificate placeholders.')
                     ->schema([
                         CodeEditor::make('firmware_template')
                             ->label('Firmware Template')
@@ -58,7 +58,7 @@ class DeviceSchemaVersionForm
                                 $component->state(is_string($state) ? $state : '');
                             })
                             ->columnSpanFull()
-                            ->helperText('This template is rendered per device from the Device resource with placeholders replaced automatically.'),
+                            ->helperText('Rendered per device from the Device resource with placeholders replaced automatically, including X.509 certificate placeholders.'),
                     ])
                     ->columns(1),
             ]);

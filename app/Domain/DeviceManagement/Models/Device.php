@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
@@ -111,6 +112,29 @@ class Device extends Model
     public function desiredTopicStates(): HasMany
     {
         return $this->hasMany(DeviceDesiredTopicState::class);
+    }
+
+    /**
+     * @return HasMany<DeviceCertificate, $this>
+     */
+    public function certificates(): HasMany
+    {
+        return $this->hasMany(DeviceCertificate::class);
+    }
+
+    /**
+     * @return HasOne<DeviceCertificate, $this>
+     */
+    public function activeCertificate(): HasOne
+    {
+        return $this->hasOne(DeviceCertificate::class)->ofMany(
+            ['issued_at' => 'max'],
+            function ($query): void {
+                $query
+                    ->whereNull('revoked_at')
+                    ->where('not_after', '>', now());
+            }
+        );
     }
 
     public function canBeControlled(): bool

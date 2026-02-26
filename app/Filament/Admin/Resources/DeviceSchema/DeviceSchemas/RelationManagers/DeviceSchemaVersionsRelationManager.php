@@ -47,7 +47,7 @@ class DeviceSchemaVersionsRelationManager extends RelationManager
                 CodeEditor::make('firmware_template')
                     ->language(Language::Cpp)
                     ->columnSpanFull()
-                    ->helperText('Supports placeholders like {{DEVICE_ID}}, {{CONTROL_TOPIC}}, and {{STATE_TOPIC}}.'),
+                    ->helperText('Supports placeholders like {{DEVICE_ID}}, {{CONTROL_TOPIC}}, {{STATE_TOPIC}}, {{MQTT_HOST}}, {{MQTT_FALLBACK_HOST}}, {{MQTT_PORT}}, {{MQTT_USE_TLS}}, {{MQTT_SECURITY_MODE}}, and X.509 certificate placeholders.'),
             ])
             ->columns(2);
     }

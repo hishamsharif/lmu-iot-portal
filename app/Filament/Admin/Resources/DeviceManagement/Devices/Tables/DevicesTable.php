@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Filament\Admin\Resources\DeviceManagement\Devices\Tables;
 
 use App\Domain\DeviceManagement\Models\Device;
+use App\Filament\Actions\DeviceManagement\ProvisionX509CertificateAction;
 use App\Filament\Actions\DeviceManagement\ReplicateDeviceActions;
+use App\Filament\Actions\DeviceManagement\RevokeX509CertificateAction;
+use App\Filament\Actions\DeviceManagement\RotateX509CertificateAction;
 use App\Filament\Actions\DeviceManagement\SimulatePublishingActions;
 use App\Filament\Actions\DeviceManagement\ViewFirmwareAction;
 use App\Filament\Admin\Resources\DeviceManagement\Devices\DeviceResource;
@@ -113,6 +116,9 @@ class DevicesTable
                 Actions\ActionGroup::make([
                     Actions\ViewAction::make(),
                     ViewFirmwareAction::make(),
+                    ProvisionX509CertificateAction::make(),
+                    RotateX509CertificateAction::make(),
+                    RevokeX509CertificateAction::make(),
                     Actions\Action::make('controlDashboard')
                         ->label('Control')
                         ->icon(Heroicon::OutlinedCommandLine)

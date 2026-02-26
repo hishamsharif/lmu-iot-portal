@@ -34,12 +34,14 @@ final class PhpMqttCommandPublisher implements MqttCommandPublisher
     public function publish(string $mqttTopic, string $payload, string $host, int $port): void
     {
         $lockHandle = $this->acquireLock();
+        $tlsEnabled = (bool) config('iot.mqtt.tls.enabled', false);
 
         if ($lockHandle === null) {
             Log::channel('device_control')->warning('MQTT publish lock unavailable, proceeding without lock', [
                 'topic' => $mqttTopic,
                 'host' => $host,
                 'port' => $port,
+                'tls_enabled' => $tlsEnabled,
             ]);
         }
 
@@ -48,24 +50,33 @@ final class PhpMqttCommandPublisher implements MqttCommandPublisher
             'port' => $port,
             'topic' => $mqttTopic,
             'payload_size' => strlen($payload),
+            'tls_enabled' => $tlsEnabled,
+        ]);
+
+        $transport = $tlsEnabled ? 'ssl' : 'tcp';
+        $context = stream_context_create([
+            'ssl' => $this->buildTlsContextOptions(),
         ]);
 
         $socket = @stream_socket_client(
-            "tcp://{$host}:{$port}",
+            "{$transport}://{$host}:{$port}",
             $errorCode,
             $errorMessage,
             self::CONNECT_TIMEOUT_SECONDS,
+            STREAM_CLIENT_CONNECT,
+            $context,
         );
 
         if ($socket === false) {
             Log::channel('device_control')->error('MQTT TCP connection failed', [
                 'host' => $host,
                 'port' => $port,
+                'transport' => $transport,
                 'error_code' => $errorCode,
                 'error_message' => $errorMessage,
             ]);
 
-            throw new RuntimeException("MQTT TCP connection failed to {$host}:{$port}: {$errorMessage} ({$errorCode})");
+            throw new RuntimeException("MQTT {$transport} connection failed to {$host}:{$port}: {$errorMessage} ({$errorCode})");
         }
 
         stream_set_timeout($socket, self::CONNECT_TIMEOUT_SECONDS);
@@ -86,6 +97,7 @@ final class PhpMqttCommandPublisher implements MqttCommandPublisher
                 'host' => $host,
                 'port' => $port,
                 'payload_size' => strlen($payload),
+                'tls_enabled' => $tlsEnabled,
             ]);
 
             $this->sendDisconnect($socket);
@@ -193,6 +205,41 @@ final class PhpMqttCommandPublisher implements MqttCommandPublisher
     private function encodeUtf8String(string $string): string
     {
         return pack('n', strlen($string)).$string;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildTlsContextOptions(): array
+    {
+        $tlsEnabled = (bool) config('iot.mqtt.tls.enabled', false);
+
+        if (! $tlsEnabled) {
+            return [];
+        }
+
+        $options = [
+            'verify_peer' => (bool) config('iot.mqtt.tls.verify_peer', true),
+            'verify_peer_name' => (bool) config('iot.mqtt.tls.verify_peer_name', true),
+            'allow_self_signed' => (bool) config('iot.mqtt.tls.allow_self_signed', false),
+        ];
+
+        $caPath = config('iot.mqtt.tls.ca_path');
+        if (is_string($caPath) && trim($caPath) !== '' && is_file($caPath)) {
+            $options['cafile'] = $caPath;
+        }
+
+        $clientCertificatePath = config('iot.mqtt.tls.client_cert_path');
+        if (is_string($clientCertificatePath) && trim($clientCertificatePath) !== '' && is_file($clientCertificatePath)) {
+            $options['local_cert'] = $clientCertificatePath;
+        }
+
+        $clientKeyPath = config('iot.mqtt.tls.client_key_path');
+        if (is_string($clientKeyPath) && trim($clientKeyPath) !== '' && is_file($clientKeyPath)) {
+            $options['local_pk'] = $clientKeyPath;
+        }
+
+        return $options;
     }
 
     private function encodeRemainingLength(int $length): string

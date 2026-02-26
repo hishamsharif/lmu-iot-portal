@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Domain\DeviceManagement\Enums\MqttSecurityMode;
 use App\Domain\DeviceManagement\Enums\ProtocolType;
 use App\Domain\DeviceManagement\Models\DeviceType;
 use App\Domain\DeviceManagement\ValueObjects\Protocol\HttpProtocolConfig;
@@ -119,4 +120,27 @@ test('http protocol config validates url format', function (): void {
         authType: \App\Domain\DeviceManagement\Enums\HttpAuthType::None,
         timeout: 30
     ))->toThrow(\InvalidArgumentException::class, 'Base URL must be a valid URL');
+});
+
+test('mqtt protocol config supports x509 security mode', function (): void {
+    $mqttConfig = new MqttProtocolConfig(
+        brokerHost: 'mqtt.example.com',
+        brokerPort: 8883,
+        username: null,
+        password: null,
+        useTls: true,
+        baseTopic: 'devices',
+        securityMode: MqttSecurityMode::X509Mtls,
+    );
+
+    $deviceType = DeviceType::factory()->create([
+        'default_protocol' => ProtocolType::Mqtt,
+        'protocol_config' => $mqttConfig,
+    ]);
+
+    $deviceType->refresh();
+
+    expect($deviceType->protocol_config)
+        ->toBeInstanceOf(MqttProtocolConfig::class)
+        ->securityMode->toBe(MqttSecurityMode::X509Mtls);
 });

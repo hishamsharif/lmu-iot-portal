@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Filament\Admin\Resources\DeviceManagement\DeviceTypes\Schemas;
 
 use App\Domain\DeviceManagement\Enums\HttpAuthType;
+use App\Domain\DeviceManagement\Enums\MqttSecurityMode;
 use App\Domain\DeviceManagement\Enums\ProtocolType;
 use App\Domain\DeviceManagement\Models\DeviceType;
+use App\Domain\DeviceManagement\ValueObjects\Protocol\MqttProtocolConfig;
 use App\Filament\Admin\Resources\Shared\Organizations\OrganizationResource;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\KeyValueEntry;
@@ -85,7 +87,14 @@ class DeviceTypeInfolist
                         TextEntry::make('protocol_config.username')
                             ->label('Username')
                             ->state(fn ($record): ?string => $record->protocol_config?->username)
-                            ->placeholder('—'),
+                            ->placeholder('—')
+                            ->visible(fn ($record): bool => $record->protocol_config instanceof MqttProtocolConfig && $record->protocol_config->securityMode === MqttSecurityMode::UsernamePassword),
+
+                        TextEntry::make('protocol_config.security_mode')
+                            ->label('Security Mode')
+                            ->state(fn ($record): ?MqttSecurityMode => $record->protocol_config instanceof MqttProtocolConfig ? $record->protocol_config->securityMode : null)
+                            ->formatStateUsing(fn (?MqttSecurityMode $state): string => $state?->label() ?? MqttSecurityMode::UsernamePassword->label())
+                            ->badge(),
 
                         IconEntry::make('protocol_config.use_tls')
                             ->label('TLS/SSL')

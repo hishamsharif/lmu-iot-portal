@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Domain\DeviceManagement\Models\DeviceType;
 use App\Domain\DeviceSchema\Models\DeviceSchemaVersion;
 use App\Domain\DeviceSchema\Models\ParameterDefinition;
 use Database\Seeders\DeviceSchemaSeeder;
@@ -22,7 +23,25 @@ it('seeds rgb led controller firmware template from the esp-32-rgb-light file', 
         ->and($version?->firmware_template)->toBeString()
         ->and($version?->firmware_template)->toContain('PIN_WIFI_STATUS_LED')
         ->and($version?->firmware_template)->toContain('PIN_MQTT_STATUS_LED')
+        ->and($version?->firmware_template)->toContain('const char* MQTT_FALLBACK_HOST = "{{MQTT_FALLBACK_HOST}}";')
         ->and($version?->firmware_template)->toContain('const char* MQTT_CLIENT   = "{{MQTT_CLIENT_ID}}"');
+});
+
+it('seeds mqtt broker host and port from iot config', function (): void {
+    config([
+        'iot.mqtt.host' => '10.0.0.42',
+        'iot.mqtt.port' => 1883,
+    ]);
+
+    $this->seed(DeviceSchemaSeeder::class);
+
+    $deviceType = DeviceType::query()
+        ->where('key', 'rgb_led_controller')
+        ->first();
+
+    expect($deviceType)->not->toBeNull()
+        ->and($deviceType?->protocol_config?->brokerHost)->toBe('10.0.0.42')
+        ->and($deviceType?->protocol_config?->brokerPort)->toBe(1883);
 });
 
 it('seeds the energy meter telemetry contract with voltages, currents, counter energy, and enum state', function (): void {

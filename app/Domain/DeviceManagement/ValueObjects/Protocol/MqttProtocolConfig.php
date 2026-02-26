@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain\DeviceManagement\ValueObjects\Protocol;
 
+use App\Domain\DeviceManagement\Enums\MqttSecurityMode;
+
 final readonly class MqttProtocolConfig implements ProtocolConfigInterface
 {
     public function __construct(
@@ -13,6 +15,7 @@ final readonly class MqttProtocolConfig implements ProtocolConfigInterface
         public ?string $password = null,
         public bool $useTls = false,
         public string $baseTopic = 'device',
+        public MqttSecurityMode $securityMode = MqttSecurityMode::UsernamePassword,
     ) {
         if ($this->brokerPort < 1 || $this->brokerPort > 65535) {
             throw new \InvalidArgumentException('Broker port must be between 1 and 65535');
@@ -36,6 +39,7 @@ final readonly class MqttProtocolConfig implements ProtocolConfigInterface
             'password' => $this->password,
             'use_tls' => $this->useTls,
             'base_topic' => $this->baseTopic,
+            'security_mode' => $this->securityMode->value,
         ];
     }
 
@@ -59,6 +63,13 @@ final readonly class MqttProtocolConfig implements ProtocolConfigInterface
         $baseTopic = $data['base_topic'] ?? null;
         $baseTopic = is_string($baseTopic) && $baseTopic !== '' ? $baseTopic : 'device';
 
+        $securityMode = $data['security_mode'] ?? MqttSecurityMode::UsernamePassword->value;
+        $resolvedSecurityMode = $securityMode instanceof MqttSecurityMode
+            ? $securityMode
+            : ((is_string($securityMode) || is_int($securityMode))
+                ? MqttSecurityMode::tryFrom((string) $securityMode)
+                : null);
+
         return new self(
             brokerHost: $brokerHost,
             brokerPort: $brokerPort,
@@ -66,6 +77,7 @@ final readonly class MqttProtocolConfig implements ProtocolConfigInterface
             password: $password,
             useTls: $useTls,
             baseTopic: $baseTopic,
+            securityMode: $resolvedSecurityMode ?? MqttSecurityMode::UsernamePassword,
         );
     }
 }

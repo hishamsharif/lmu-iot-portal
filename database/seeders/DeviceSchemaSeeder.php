@@ -25,55 +25,28 @@ class DeviceSchemaSeeder extends Seeder
      */
     public function run(): void
     {
-        $thermalDeviceType = DeviceType::firstOrCreate(
-            ['key' => 'thermal_sensor'],
-            [
-                'organization_id' => null,
-                'name' => 'Thermal Sensor',
-                'default_protocol' => ProtocolType::Mqtt,
-                'protocol_config' => (new MqttProtocolConfig(
-                    brokerHost: 'mqtt.iot-platform.local',
-                    brokerPort: 1883,
-                    username: 'thermal_sensor',
-                    password: 'thermal_password',
-                    useTls: false,
-                    baseTopic: 'thermal',
-                ))->toArray(),
-            ]
+        $thermalDeviceType = $this->upsertMqttDeviceType(
+            key: 'thermal_sensor',
+            name: 'Thermal Sensor',
+            username: 'thermal_sensor',
+            password: 'thermal_password',
+            baseTopic: 'thermal',
         );
 
-        $networkDeviceType = DeviceType::firstOrCreate(
-            ['key' => 'network_gateway'],
-            [
-                'organization_id' => null,
-                'name' => 'Network Gateway',
-                'default_protocol' => ProtocolType::Mqtt,
-                'protocol_config' => (new MqttProtocolConfig(
-                    brokerHost: 'mqtt.iot-platform.local',
-                    brokerPort: 1883,
-                    username: 'network_gateway',
-                    password: 'network_password',
-                    useTls: false,
-                    baseTopic: 'network',
-                ))->toArray(),
-            ]
+        $networkDeviceType = $this->upsertMqttDeviceType(
+            key: 'network_gateway',
+            name: 'Network Gateway',
+            username: 'network_gateway',
+            password: 'network_password',
+            baseTopic: 'network',
         );
 
-        $energyMeterType = DeviceType::firstOrCreate(
-            ['key' => 'energy_meter'],
-            [
-                'organization_id' => null,
-                'name' => 'Energy Meter',
-                'default_protocol' => ProtocolType::Mqtt,
-                'protocol_config' => (new MqttProtocolConfig(
-                    brokerHost: 'mqtt.iot-platform.local',
-                    brokerPort: 1883,
-                    username: 'energy_meter',
-                    password: 'energy_password',
-                    useTls: false,
-                    baseTopic: 'energy',
-                ))->toArray(),
-            ]
+        $energyMeterType = $this->upsertMqttDeviceType(
+            key: 'energy_meter',
+            name: 'Energy Meter',
+            username: 'energy_meter',
+            password: 'energy_password',
+            baseTopic: 'energy',
         );
 
         $thermalSchema = DeviceSchema::firstOrCreate([
@@ -384,21 +357,12 @@ class DeviceSchemaSeeder extends Seeder
      */
     private function seedSmartFan(): void
     {
-        $smartFanType = DeviceType::firstOrCreate(
-            ['key' => 'smart_fan'],
-            [
-                'organization_id' => null,
-                'name' => 'Smart Fan',
-                'default_protocol' => ProtocolType::Mqtt,
-                'protocol_config' => (new MqttProtocolConfig(
-                    brokerHost: 'mqtt.iot-platform.local',
-                    brokerPort: 1883,
-                    username: 'smart_fan',
-                    password: 'fan_password',
-                    useTls: false,
-                    baseTopic: 'devices/fan',
-                ))->toArray(),
-            ]
+        $smartFanType = $this->upsertMqttDeviceType(
+            key: 'smart_fan',
+            name: 'Smart Fan',
+            username: 'smart_fan',
+            password: 'fan_password',
+            baseTopic: 'devices/fan',
         );
 
         $fanSchema = DeviceSchema::firstOrCreate([
@@ -539,21 +503,12 @@ class DeviceSchemaSeeder extends Seeder
      */
     private function seedDimmableLight(): void
     {
-        $dimmableLightType = DeviceType::firstOrCreate(
-            ['key' => 'dimmable_light'],
-            [
-                'organization_id' => null,
-                'name' => 'Dimmable Light',
-                'default_protocol' => ProtocolType::Mqtt,
-                'protocol_config' => (new MqttProtocolConfig(
-                    brokerHost: 'mqtt.iot-platform.local',
-                    brokerPort: 1883,
-                    username: 'dimmable_light',
-                    password: 'light_password',
-                    useTls: false,
-                    baseTopic: 'devices/dimmable-light',
-                ))->toArray(),
-            ]
+        $dimmableLightType = $this->upsertMqttDeviceType(
+            key: 'dimmable_light',
+            name: 'Dimmable Light',
+            username: 'dimmable_light',
+            password: 'light_password',
+            baseTopic: 'devices/dimmable-light',
         );
 
         $lightSchema = DeviceSchema::firstOrCreate([
@@ -645,21 +600,12 @@ class DeviceSchemaSeeder extends Seeder
      */
     private function seedRgbLedController(): void
     {
-        $rgbLedType = DeviceType::firstOrCreate(
-            ['key' => 'rgb_led_controller'],
-            [
-                'organization_id' => null,
-                'name' => 'RGB LED Controller',
-                'default_protocol' => ProtocolType::Mqtt,
-                'protocol_config' => (new MqttProtocolConfig(
-                    brokerHost: 'mqtt.iot-platform.local',
-                    brokerPort: 1883,
-                    username: 'rgb_led',
-                    password: 'rgb_password',
-                    useTls: false,
-                    baseTopic: 'devices/rgb-led',
-                ))->toArray(),
-            ]
+        $rgbLedType = $this->upsertMqttDeviceType(
+            key: 'rgb_led_controller',
+            name: 'RGB LED Controller',
+            username: 'rgb_led',
+            password: 'rgb_password',
+            baseTopic: 'devices/rgb-led',
         );
 
         $rgbSchema = DeviceSchema::firstOrCreate([
@@ -841,6 +787,55 @@ class DeviceSchemaSeeder extends Seeder
         $version->update([
             'firmware_template' => $template,
         ]);
+    }
+
+    private function upsertMqttDeviceType(
+        string $key,
+        string $name,
+        string $username,
+        string $password,
+        string $baseTopic,
+    ): DeviceType {
+        return DeviceType::updateOrCreate(
+            ['key' => $key],
+            [
+                'organization_id' => null,
+                'name' => $name,
+                'default_protocol' => ProtocolType::Mqtt,
+                'protocol_config' => (new MqttProtocolConfig(
+                    brokerHost: $this->resolveSeedBrokerHost(),
+                    brokerPort: $this->resolveSeedBrokerPort(),
+                    username: $username,
+                    password: $password,
+                    useTls: false,
+                    baseTopic: $baseTopic,
+                ))->toArray(),
+            ],
+        );
+    }
+
+    private function resolveSeedBrokerHost(): string
+    {
+        $configuredMqttHost = config('iot.mqtt.host');
+        if (is_string($configuredMqttHost) && trim($configuredMqttHost) !== '') {
+            return trim($configuredMqttHost);
+        }
+
+        $configuredNatsHost = config('iot.nats.host');
+        if (is_string($configuredNatsHost) && trim($configuredNatsHost) !== '') {
+            return trim($configuredNatsHost);
+        }
+
+        return '127.0.0.1';
+    }
+
+    private function resolveSeedBrokerPort(): int
+    {
+        $configuredMqttPort = config('iot.mqtt.port', 1883);
+
+        return is_numeric($configuredMqttPort)
+            ? (int) $configuredMqttPort
+            : 1883;
     }
 
     private function loadFirmwareTemplate(string $relativePath): ?string

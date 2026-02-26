@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Database\Factories\Domain\DeviceManagement\Models;
 
 use App\Domain\DeviceManagement\Enums\HttpAuthType;
+use App\Domain\DeviceManagement\Enums\MqttSecurityMode;
 use App\Domain\DeviceManagement\Enums\ProtocolType;
 use App\Domain\DeviceManagement\Models\DeviceType;
 use App\Domain\DeviceManagement\ValueObjects\Protocol\HttpProtocolConfig;
@@ -98,6 +99,7 @@ class DeviceTypeFactory extends Factory
             password: Str::random(16),
             useTls: random_int(1, 100) <= 30,
             baseTopic: 'device',
+            securityMode: MqttSecurityMode::UsernamePassword,
         ))->toArray();
     }
 
