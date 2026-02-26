@@ -8,7 +8,7 @@
 
 - **Docker Desktop** (or Docker Engine + Compose)
 - **Git**
-- **Composer** 2.x
+- **Composer** 2.x (optional if you use Docker-based Composer install)
 - **Node.js** 20+ & **NPM**
 
 ### 1. Clone & Install Dependencies
@@ -16,8 +16,19 @@
 ```bash
 git clone https://github.com/tharindarodrigo/lmu-iot-portal.git
 cd lmu-iot-portal
+```
 
+Install dependencies with one of the following options:
+
+```bash
+# Option A: local Composer
 composer install
+npm install
+```
+
+```bash
+# Option B: no local Composer (uses Docker)
+./scripts/composer-install.sh
 npm install
 ```
 
@@ -25,7 +36,6 @@ npm install
 
 ```bash
 cp .env.example .env
-php artisan key:generate
 ```
 
 Edit `.env` and set your database credentials:
@@ -76,7 +86,8 @@ SELECT extversion FROM pg_extension WHERE extname = 'timescaledb';
 Start the full Docker platform stack in one command:
 
 ```bash
-composer platform:up
+./scripts/platform-up.sh
+# or: composer platform:up
 ```
 
 This starts all required services:
@@ -95,25 +106,27 @@ This starts all required services:
 After first startup, initialize and seed the database:
 
 ```bash
-docker compose -f compose.yaml exec laravel.test php artisan migrate --seed
+docker compose -f compose.yaml exec laravel.test php artisan key:generate --no-interaction
+docker compose -f compose.yaml exec laravel.test php artisan migrate --seed --no-interaction
 ```
 
 Stop everything:
 
 ```bash
-composer platform:down
+./scripts/platform-down.sh
+# or: composer platform:down
 ```
 
 ### 5. Database Migration & Seeding
 
 ```bash
-docker compose -f compose.yaml exec laravel.test php artisan migrate --seed
+docker compose -f compose.yaml exec laravel.test php artisan migrate --seed --no-interaction
 ```
 
 Reset and reseed from scratch (development only):
 
 ```bash
-docker compose -f compose.yaml exec laravel.test php artisan migrate:fresh --seed
+docker compose -f compose.yaml exec laravel.test php artisan migrate:fresh --seed --no-interaction
 ```
 
 This creates all tables, enables TimescaleDB hypertables, syncs permissions, and seeds demo data including:
@@ -128,7 +141,8 @@ This creates all tables, enables TimescaleDB hypertables, syncs permissions, and
 npm run build
 
 # OR for development with hot reload:
-composer platform:up:vite
+./scripts/platform-up.sh --vite
+# or: composer platform:up:vite
 ```
 
 ### 7. Telemetry Queue Workers (Seamless Flow)
@@ -220,12 +234,12 @@ For full functionality, you need these services running:
 
 | Service | Command | Purpose |
 |---------|---------|---------|
-| Platform startup (recommended) | `composer platform:up` | Starts full Docker platform including web, broker, listeners, Horizon, and scheduler |
-| Platform shutdown | `composer platform:down` | Stops all platform containers |
+| Platform startup (recommended) | `./scripts/platform-up.sh` | Starts full Docker platform including web, broker, listeners, Horizon, and scheduler |
+| Platform shutdown | `./scripts/platform-down.sh` | Stops all platform containers |
 | Show container status | `docker compose -f compose.yaml ps` | Quick health/status view for all services |
 | Telemetry + queue logs | `docker compose -f compose.yaml logs -f iot-ingest-telemetry horizon` | Validate telemetry ingestion and queue worker processing |
 | Scale queue workers | `docker compose -f compose.yaml up -d --scale horizon=2` | Add more Horizon processes for high telemetry throughput |
-| Vite (optional) | `composer platform:up:vite` | Starts platform and launches Vite dev server inside `laravel.test` |
+| Vite (optional) | `./scripts/platform-up.sh --vite` | Starts platform and launches Vite dev server inside `laravel.test` |
 
 If dashboard realtime appears stale, rebuild assets in Docker and clear cached config:
 
@@ -297,6 +311,10 @@ vendor/bin/phpstan analyse
 # Run all quality checks (format + analyse)
 composer run x      # with auto-fix
 composer run x-test # dry-run (CI mode)
+
+# If you don't have local Composer:
+docker compose -f compose.yaml exec laravel.test composer run x
+docker compose -f compose.yaml exec laravel.test composer run x-test
 ```
 
 ## 🔄 Contributing

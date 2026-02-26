@@ -16,6 +16,7 @@ use App\Domain\DeviceSchema\Models\SchemaVersionTopic;
 use App\Domain\Shared\Models\User;
 use App\Events\CommandDispatched;
 use App\Events\CommandSent;
+use App\Filament\Admin\Resources\DeviceManagement\Devices\DeviceResource;
 use App\Filament\Admin\Resources\DeviceManagement\Devices\Pages\DeviceControlDashboard;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
@@ -151,6 +152,13 @@ it('can render the control dashboard page', function (): void {
     $device = createTestDeviceForDashboard();
 
     livewire(DeviceControlDashboard::class, ['record' => $device->id])
+        ->assertSuccessful();
+});
+
+it('can open the control dashboard route', function (): void {
+    $device = createTestDeviceForDashboard();
+
+    $this->get(DeviceResource::getUrl('control-dashboard', ['record' => $device]))
         ->assertSuccessful();
 });
 
