@@ -21,6 +21,7 @@
  */
 
 #include <WiFi.h>
+#include <WiFiClient.h>
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
@@ -34,6 +35,8 @@ const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
 // MQTT broker — the NATS MQTT bridge address
 const char* MQTT_HOST     = "{{MQTT_HOST}}";
 const uint16_t MQTT_PORT  = {{MQTT_PORT}};
+const bool MQTT_USE_TLS   = {{MQTT_USE_TLS}};
+const char* MQTT_SECURITY_MODE = "{{MQTT_SECURITY_MODE}}";
 const char* MQTT_USER     = "{{MQTT_USER}}";
 const char* MQTT_PASS     = "{{MQTT_PASS}}";
 const char* MQTT_CLIENT   = "{{MQTT_CLIENT_ID}}";
@@ -74,7 +77,8 @@ const unsigned long BUTTON_DEBOUNCE_MS   = 50;   // hardware debounce
 
 /* ─────────────────────── State ─────────────────────── */
 
-WiFiClientSecure wifiClient;
+WiFiClient wifiClient;
+WiFiClientSecure wifiSecureClient;
 PubSubClient mqttClient(wifiClient);
 
 uint8_t brightnessLevel = 0;
@@ -170,14 +174,29 @@ void connectWiFi() {
 /* ─────────────────────── MQTT Connection ─────────────────────── */
 
 void connectMQTT() {
-  if (MQTT_CA_CERT[0] != '\0') {
-    wifiClient.setCACert(MQTT_CA_CERT);
-  }
-  if (MQTT_CLIENT_CERT[0] != '\0') {
-    wifiClient.setCertificate(MQTT_CLIENT_CERT);
-  }
-  if (MQTT_CLIENT_KEY[0] != '\0') {
-    wifiClient.setPrivateKey(MQTT_CLIENT_KEY);
+  bool useMutualTls = strcmp(MQTT_SECURITY_MODE, "x509_mtls") == 0;
+  bool useTlsTransport = MQTT_USE_TLS || useMutualTls;
+
+  if (useTlsTransport) {
+    mqttClient.setClient(wifiSecureClient);
+
+    if (MQTT_CA_CERT[0] != '\0') {
+      wifiSecureClient.setCACert(MQTT_CA_CERT);
+    } else {
+      wifiSecureClient.setInsecure();
+      Serial.println("[MQTT] Warning: no CA cert configured, TLS peer verification disabled");
+    }
+
+    if (useMutualTls) {
+      if (MQTT_CLIENT_CERT[0] == '\0' || MQTT_CLIENT_KEY[0] == '\0') {
+        Serial.println("[MQTT] Warning: X.509 mode selected but client cert/key is missing");
+      } else {
+        wifiSecureClient.setCertificate(MQTT_CLIENT_CERT);
+        wifiSecureClient.setPrivateKey(MQTT_CLIENT_KEY);
+      }
+    }
+  } else {
+    mqttClient.setClient(wifiClient);
   }
 
   mqttClient.setServer(MQTT_HOST, MQTT_PORT);

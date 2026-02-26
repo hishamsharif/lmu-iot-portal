@@ -8,6 +8,7 @@ use App\Domain\DeviceManagement\Models\Device;
 use App\Domain\DeviceManagement\Models\DeviceCertificate;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 class DeviceCertificateIssuer
@@ -18,42 +19,53 @@ class DeviceCertificateIssuer
         ?int $issuedByUserId = null,
         bool $revokeExisting = true,
     ): DeviceCertificate {
-        $resolvedValidityDays = $this->resolveValidityDays($validityDays);
+        return DB::transaction(function () use ($device, $validityDays, $issuedByUserId, $revokeExisting): DeviceCertificate {
+            $resolvedValidityDays = $this->resolveValidityDays($validityDays);
+            [$certificatePem, $privateKeyPem, $parsedCertificate] = $this->generateSignedCertificate($device, $resolvedValidityDays);
 
-        if ($revokeExisting) {
-            $this->revokeActiveForDevice($device, 'superseded');
-        }
+            $fingerprint = openssl_x509_fingerprint($certificatePem, 'sha256');
 
-        [$certificatePem, $privateKeyPem, $parsedCertificate] = $this->generateSignedCertificate($device, $resolvedValidityDays);
+            if (! is_string($fingerprint) || trim($fingerprint) === '') {
+                throw new RuntimeException('Failed to compute certificate fingerprint.');
+            }
 
-        $fingerprint = openssl_x509_fingerprint($certificatePem, 'sha256');
+            $issuedAt = CarbonImmutable::now();
+            $notBeforeValue = $parsedCertificate['validFrom_time_t'] ?? null;
+            $notAfterValue = $parsedCertificate['validTo_time_t'] ?? null;
+            $notBeforeTimestamp = is_numeric($notBeforeValue) ? (int) $notBeforeValue : $issuedAt->getTimestamp();
+            $notAfterTimestamp = is_numeric($notAfterValue)
+                ? (int) $notAfterValue
+                : $issuedAt->addDays($resolvedValidityDays)->getTimestamp();
+            $serialNumber = $this->resolveSerialNumber($parsedCertificate);
 
-        if (! is_string($fingerprint) || trim($fingerprint) === '') {
-            throw new RuntimeException('Failed to compute certificate fingerprint.');
-        }
+            $newCertificate = $device->certificates()->create([
+                'issued_by_user_id' => $issuedByUserId,
+                'serial_number' => $serialNumber,
+                'subject_dn' => $this->resolveSubjectDn($parsedCertificate, $device),
+                'fingerprint_sha256' => strtolower($fingerprint),
+                'certificate_pem' => $certificatePem,
+                'private_key_encrypted' => Crypt::encryptString($privateKeyPem),
+                'issued_at' => $issuedAt,
+                'not_before' => CarbonImmutable::createFromTimestampUTC($notBeforeTimestamp),
+                'not_after' => CarbonImmutable::createFromTimestampUTC($notAfterTimestamp),
+                'revoked_at' => null,
+                'revocation_reason' => null,
+            ]);
 
-        $issuedAt = CarbonImmutable::now();
-        $notBeforeValue = $parsedCertificate['validFrom_time_t'] ?? null;
-        $notAfterValue = $parsedCertificate['validTo_time_t'] ?? null;
-        $notBeforeTimestamp = is_numeric($notBeforeValue) ? (int) $notBeforeValue : $issuedAt->getTimestamp();
-        $notAfterTimestamp = is_numeric($notAfterValue)
-            ? (int) $notAfterValue
-            : $issuedAt->addDays($resolvedValidityDays)->getTimestamp();
-        $serialNumber = $this->resolveSerialNumber($parsedCertificate);
+            if ($revokeExisting) {
+                $device->certificates()
+                    ->whereKeyNot($newCertificate->getKey())
+                    ->whereNull('revoked_at')
+                    ->where('not_after', '>', now())
+                    ->update([
+                        'revoked_at' => now(),
+                        'revocation_reason' => 'superseded',
+                        'updated_at' => now(),
+                    ]);
+            }
 
-        return $device->certificates()->create([
-            'issued_by_user_id' => $issuedByUserId,
-            'serial_number' => $serialNumber,
-            'subject_dn' => $this->resolveSubjectDn($parsedCertificate, $device),
-            'fingerprint_sha256' => strtolower($fingerprint),
-            'certificate_pem' => $certificatePem,
-            'private_key_encrypted' => Crypt::encryptString($privateKeyPem),
-            'issued_at' => $issuedAt,
-            'not_before' => CarbonImmutable::createFromTimestampUTC($notBeforeTimestamp),
-            'not_after' => CarbonImmutable::createFromTimestampUTC($notAfterTimestamp),
-            'revoked_at' => null,
-            'revocation_reason' => null,
-        ]);
+            return $newCertificate;
+        });
     }
 
     public function rotateForDevice(Device $device, ?int $validityDays = null, ?int $issuedByUserId = null): DeviceCertificate

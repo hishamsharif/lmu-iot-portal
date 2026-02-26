@@ -124,3 +124,27 @@ it('builds a provisioning bundle with ca and active certificate material', funct
         ->and($bundle['device_certificate_pem'])->toContain('BEGIN CERTIFICATE')
         ->and($bundle['device_private_key_pem'])->toContain('BEGIN PRIVATE KEY');
 });
+
+it('keeps the previous certificate active when rotation fails before storing a replacement', function (): void {
+    configureTestPkiPaths();
+
+    $device = Device::factory()->create();
+
+    /** @var DeviceCertificateIssuer $issuer */
+    $issuer = app(DeviceCertificateIssuer::class);
+    $firstCertificate = $issuer->issueForDevice($device, 365);
+
+    config([
+        'iot.pki.ca_private_key_path' => storage_path('framework/testing/does-not-exist-ca.key'),
+    ]);
+
+    expect(fn (): DeviceCertificate => $issuer->rotateForDevice($device, 365))
+        ->toThrow(RuntimeException::class);
+
+    $firstCertificate->refresh();
+    $activeCertificate = $device->fresh()->activeCertificate()->first();
+
+    expect($firstCertificate->revoked_at)->toBeNull()
+        ->and($activeCertificate)->not->toBeNull()
+        ->and($activeCertificate?->id)->toBe($firstCertificate->id);
+});
