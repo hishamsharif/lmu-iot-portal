@@ -74,3 +74,17 @@ it('seeds the energy meter device required by automation workflows', function ()
 
     expect($energyMeter)->not->toBeNull();
 });
+
+it('seeds the single-phase energy meter device', function (): void {
+    $this->seed(DeviceSchemaSeeder::class);
+    $this->seed(DeviceControlSeeder::class);
+
+    $singlePhaseEnergyMeterType = DeviceType::where('key', 'single_phase_energy_meter')->first();
+    expect($singlePhaseEnergyMeterType)->not->toBeNull();
+
+    $singlePhaseEnergyMeter = Device::where('device_type_id', $singlePhaseEnergyMeterType->id)
+        ->where('external_id', 'single-phase-energy-meter-01')
+        ->first();
+
+    expect($singlePhaseEnergyMeter)->not->toBeNull();
+});

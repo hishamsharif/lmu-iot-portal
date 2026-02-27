@@ -77,3 +77,42 @@ it('seeds the energy meter telemetry contract with voltages, currents, counter e
         ->and(data_get($parameters->get('meter_state'), 'validation_rules.category'))->toBe('enum')
         ->and(data_get($parameters->get('meter_state'), 'validation_rules.enum'))->toBe(['idle', 'normal', 'fault']);
 });
+
+it('seeds the single-phase energy meter contract and firmware template', function (): void {
+    $this->seed(DeviceSchemaSeeder::class);
+
+    $version = DeviceSchemaVersion::query()
+        ->whereHas('schema.deviceType', fn ($query) => $query->where('key', 'single_phase_energy_meter'))
+        ->where('status', 'active')
+        ->orderBy('id')
+        ->first();
+
+    expect($version)->not->toBeNull()
+        ->and($version?->firmware_template)->toBeString()
+        ->and($version?->firmware_template)->toContain('ESP32 Single-Phase Energy Meter (PZEM-014/016)')
+        ->and($version?->firmware_template)->toContain('const char* MQTT_HOST = "{{MQTT_HOST}}";')
+        ->and($version?->firmware_template)->toContain('const char* TOPIC_TELEMETRY = "{{TELEMETRY_TOPIC}}";');
+
+    $parameters = ParameterDefinition::query()
+        ->whereHas('topic', fn ($query) => $query->where('device_schema_version_id', $version?->id)->where('key', 'telemetry'))
+        ->orderBy('sequence')
+        ->get()
+        ->keyBy('key');
+
+    expect($parameters->keys()->all())->toBe([
+        'voltage_v',
+        'current_a',
+        'active_power_w',
+        'frequency_hz',
+        'power_factor',
+        'total_energy_kwh',
+        'alarm_status',
+        'read_ok',
+        'modbus_error',
+        'poll_ms',
+    ])
+        ->and(data_get($parameters->get('voltage_v'), 'unit'))->toBe('Volts')
+        ->and(data_get($parameters->get('current_a'), 'unit'))->toBe('A')
+        ->and(data_get($parameters->get('total_energy_kwh'), 'unit'))->toBe('kWh')
+        ->and(data_get($parameters->get('total_energy_kwh'), 'validation_rules.category'))->toBe('counter');
+});

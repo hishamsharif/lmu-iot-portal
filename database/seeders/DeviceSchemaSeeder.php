@@ -49,6 +49,14 @@ class DeviceSchemaSeeder extends Seeder
             baseTopic: 'energy',
         );
 
+        $singlePhaseEnergyMeterType = $this->upsertMqttDeviceType(
+            key: 'single_phase_energy_meter',
+            name: 'Single-Phase Energy Meter',
+            username: 'single_phase_meter',
+            password: 'single_phase_password',
+            baseTopic: 'energy/single-phase',
+        );
+
         $thermalSchema = DeviceSchema::firstOrCreate([
             'device_type_id' => $thermalDeviceType->id,
             'name' => 'Thermal Sensor Contract',
@@ -347,9 +355,252 @@ class DeviceSchemaSeeder extends Seeder
             'json_path' => 'computed.total_current',
         ]);
 
+        $this->seedSinglePhaseEnergyMeter($singlePhaseEnergyMeterType);
         $this->seedSmartFan();
         $this->seedDimmableLight();
         $this->seedRgbLedController();
+    }
+
+    private function seedSinglePhaseEnergyMeter(DeviceType $singlePhaseEnergyMeterType): void
+    {
+        $singlePhaseSchema = DeviceSchema::firstOrCreate([
+            'device_type_id' => $singlePhaseEnergyMeterType->id,
+            'name' => 'Single-Phase Energy Meter Contract',
+        ]);
+
+        $singlePhaseVersion = DeviceSchemaVersion::firstOrCreate([
+            'device_schema_id' => $singlePhaseSchema->id,
+            'version' => 1,
+        ], [
+            'status' => 'active',
+            'notes' => 'Single-phase PZEM RS485 telemetry contract',
+        ]);
+
+        $this->upsertFirmwareTemplate(
+            version: $singlePhaseVersion,
+            template: $this->replaceDeviceIdPlaceholder(
+                $this->loadFirmwareTemplate('plan/DeviceControlArchitecture/esp32-single-phase-energy-meter/esp32-single-phase-energy-meter.ino'),
+                'single-phase-energy-meter-01',
+            ),
+        );
+
+        $telemetryTopic = SchemaVersionTopic::firstOrCreate([
+            'device_schema_version_id' => $singlePhaseVersion->id,
+            'key' => 'telemetry',
+        ], [
+            'label' => 'Telemetry',
+            'direction' => TopicDirection::Publish,
+            'purpose' => TopicPurpose::Telemetry,
+            'suffix' => 'telemetry',
+            'description' => 'Single-phase PZEM meter telemetry and diagnostics',
+            'qos' => 1,
+            'retain' => false,
+            'sequence' => 0,
+        ]);
+
+        $stateTopic = SchemaVersionTopic::firstOrCreate([
+            'device_schema_version_id' => $singlePhaseVersion->id,
+            'key' => 'state',
+        ], [
+            'label' => 'State',
+            'direction' => TopicDirection::Publish,
+            'purpose' => TopicPurpose::State,
+            'suffix' => 'state',
+            'description' => 'Meter read health and diagnostics snapshot',
+            'qos' => 1,
+            'retain' => true,
+            'sequence' => 1,
+        ]);
+
+        $telemetryParameters = [
+            [
+                'key' => 'voltage_v',
+                'label' => 'Voltage',
+                'json_path' => 'voltage_v',
+                'type' => ParameterDataType::Decimal,
+                'unit' => MetricUnit::Volts->value,
+                'required' => true,
+                'is_critical' => true,
+                'validation_rules' => ['min' => 90, 'max' => 280],
+                'validation_error_code' => 'VOLTAGE_RANGE',
+                'sequence' => 1,
+            ],
+            [
+                'key' => 'current_a',
+                'label' => 'Current',
+                'json_path' => 'current_a',
+                'type' => ParameterDataType::Decimal,
+                'unit' => MetricUnit::Amperes->value,
+                'required' => true,
+                'is_critical' => true,
+                'validation_rules' => ['min' => 0, 'max' => 120],
+                'validation_error_code' => 'CURRENT_RANGE',
+                'sequence' => 2,
+            ],
+            [
+                'key' => 'active_power_w',
+                'label' => 'Active Power',
+                'json_path' => 'active_power_w',
+                'type' => ParameterDataType::Decimal,
+                'unit' => MetricUnit::Watts->value,
+                'required' => true,
+                'is_critical' => true,
+                'validation_rules' => ['min' => 0, 'max' => 30000],
+                'validation_error_code' => 'ACTIVE_POWER_RANGE',
+                'sequence' => 3,
+            ],
+            [
+                'key' => 'frequency_hz',
+                'label' => 'Frequency',
+                'json_path' => 'frequency_hz',
+                'type' => ParameterDataType::Decimal,
+                'unit' => 'Hz',
+                'required' => true,
+                'is_critical' => false,
+                'validation_rules' => ['min' => 45, 'max' => 65],
+                'validation_error_code' => 'FREQUENCY_RANGE',
+                'sequence' => 4,
+            ],
+            [
+                'key' => 'power_factor',
+                'label' => 'Power Factor',
+                'json_path' => 'power_factor',
+                'type' => ParameterDataType::Decimal,
+                'required' => true,
+                'is_critical' => false,
+                'validation_rules' => ['min' => 0, 'max' => 1],
+                'validation_error_code' => 'POWER_FACTOR_RANGE',
+                'sequence' => 5,
+            ],
+            [
+                'key' => 'total_energy_kwh',
+                'label' => 'Total Energy',
+                'json_path' => 'total_energy_kwh',
+                'type' => ParameterDataType::Decimal,
+                'unit' => MetricUnit::KilowattHours->value,
+                'required' => true,
+                'is_critical' => true,
+                'validation_rules' => ['min' => 0, 'category' => 'counter'],
+                'validation_error_code' => 'ENERGY_COUNTER_RANGE',
+                'sequence' => 6,
+            ],
+            [
+                'key' => 'alarm_status',
+                'label' => 'Alarm Status',
+                'json_path' => 'alarm_status',
+                'type' => ParameterDataType::Integer,
+                'required' => false,
+                'is_critical' => false,
+                'validation_rules' => ['min' => 0, 'max' => 1],
+                'validation_error_code' => 'ALARM_STATUS_RANGE',
+                'sequence' => 7,
+            ],
+            [
+                'key' => 'read_ok',
+                'label' => 'Read OK',
+                'json_path' => 'read_ok',
+                'type' => ParameterDataType::Boolean,
+                'required' => true,
+                'is_critical' => false,
+                'sequence' => 8,
+            ],
+            [
+                'key' => 'modbus_error',
+                'label' => 'Modbus Error',
+                'json_path' => 'modbus_error',
+                'type' => ParameterDataType::String,
+                'required' => false,
+                'is_critical' => false,
+                'sequence' => 9,
+            ],
+            [
+                'key' => 'poll_ms',
+                'label' => 'Poll Duration',
+                'json_path' => 'poll_ms',
+                'type' => ParameterDataType::Integer,
+                'required' => false,
+                'is_critical' => false,
+                'validation_rules' => ['min' => 0, 'max' => 10000],
+                'validation_error_code' => 'POLL_DURATION_RANGE',
+                'sequence' => 10,
+            ],
+        ];
+
+        foreach ($telemetryParameters as $parameter) {
+            ParameterDefinition::updateOrCreate([
+                'schema_version_topic_id' => $telemetryTopic->id,
+                'key' => $parameter['key'],
+            ], [
+                'label' => $parameter['label'],
+                'json_path' => $parameter['json_path'],
+                'type' => $parameter['type'],
+                'unit' => $parameter['unit'] ?? null,
+                'required' => $parameter['required'],
+                'is_critical' => $parameter['is_critical'],
+                'validation_rules' => $parameter['validation_rules'] ?? null,
+                'validation_error_code' => $parameter['validation_error_code'] ?? null,
+                'sequence' => $parameter['sequence'],
+                'is_active' => true,
+            ]);
+        }
+
+        $stateParameters = [
+            [
+                'key' => 'read_ok',
+                'label' => 'Read OK',
+                'json_path' => 'read_ok',
+                'type' => ParameterDataType::Boolean,
+                'required' => true,
+                'is_critical' => false,
+                'sequence' => 1,
+            ],
+            [
+                'key' => 'modbus_error',
+                'label' => 'Modbus Error',
+                'json_path' => 'modbus_error',
+                'type' => ParameterDataType::String,
+                'required' => false,
+                'is_critical' => false,
+                'sequence' => 2,
+            ],
+            [
+                'key' => 'poll_ms',
+                'label' => 'Poll Duration',
+                'json_path' => 'poll_ms',
+                'type' => ParameterDataType::Integer,
+                'required' => false,
+                'is_critical' => false,
+                'validation_rules' => ['min' => 0, 'max' => 10000],
+                'validation_error_code' => 'POLL_DURATION_RANGE',
+                'sequence' => 3,
+            ],
+            [
+                'key' => 'fw_version',
+                'label' => 'Firmware Version',
+                'json_path' => 'fw_version',
+                'type' => ParameterDataType::String,
+                'required' => false,
+                'is_critical' => false,
+                'sequence' => 4,
+            ],
+        ];
+
+        foreach ($stateParameters as $parameter) {
+            ParameterDefinition::updateOrCreate([
+                'schema_version_topic_id' => $stateTopic->id,
+                'key' => $parameter['key'],
+            ], [
+                'label' => $parameter['label'],
+                'json_path' => $parameter['json_path'],
+                'type' => $parameter['type'],
+                'required' => $parameter['required'],
+                'is_critical' => $parameter['is_critical'],
+                'validation_rules' => $parameter['validation_rules'] ?? null,
+                'validation_error_code' => $parameter['validation_error_code'] ?? null,
+                'sequence' => $parameter['sequence'],
+                'is_active' => true,
+            ]);
+        }
     }
 
     /**

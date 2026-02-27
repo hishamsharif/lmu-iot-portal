@@ -51,6 +51,17 @@ class DeviceControlSeeder extends Seeder
                 'model' => 'EM-3PH-400',
             ],
         );
+
+        $this->seedDeviceForType(
+            organizationId: $organization->id,
+            deviceTypeKey: 'single_phase_energy_meter',
+            externalId: 'single-phase-energy-meter-01',
+            name: 'Single-Phase Energy Meter',
+            metadata: [
+                'location' => 'Single-Phase Test Bench',
+                'model' => 'PZEM-016 + ESP32',
+            ],
+        );
     }
 
     /**
