@@ -1,7 +1,9 @@
 <?php
 
-it('returns a successful response', function (): void {
+declare(strict_types=1);
+
+it('redirects home to the admin panel', function (): void {
     $response = $this->get('/');
 
-    $response->assertStatus(200);
+    $response->assertRedirect('/admin');
 });
