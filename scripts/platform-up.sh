@@ -104,6 +104,7 @@ if [[ "$first_run" -eq 1 ]]; then
     echo "First-time setup detected. Generating app key and running migrations..."
     (cd "$repo_root" && docker compose -f compose.yaml exec laravel.test php artisan key:generate --no-interaction)
     (cd "$repo_root" && docker compose -f compose.yaml exec laravel.test php artisan migrate --seed --no-interaction)
+    (cd "$repo_root" && docker compose -f compose.yaml exec laravel.test php artisan iot:pki:init --no-interaction)
     echo "Restarting containers to pick up new app key..."
     (cd "$repo_root" && docker compose -f compose.yaml restart)
 fi
