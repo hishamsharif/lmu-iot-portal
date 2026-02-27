@@ -102,7 +102,7 @@ if grep -q '^APP_KEY=$' "$repo_root/.env"; then
 fi
 
 echo "Starting Docker platform stack..."
-(cd "$repo_root" && docker compose -f compose.yaml up -d)
+(cd "$repo_root" && docker compose -f compose.yaml up -d --build)
 
 if [[ "$first_run" -eq 1 ]]; then
     echo "First-time setup detected. Generating app key and running migrations..."
